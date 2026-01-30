@@ -2,7 +2,7 @@
 
 NAME="EPL ABR Analysis"
 APPNAME="$NAME.app"
-VER="1.11"
+VER="1.11.1"
 
 if [[ "$1" != "-package" && "$1" != "-dmg" ]]; then
     echo "Building app..."

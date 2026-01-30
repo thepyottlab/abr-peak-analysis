@@ -55,7 +55,7 @@ DATA_FILES = ['splash.png']
 
 setup(
     name='EPL ABR Analysis',
-    version='1.11',
+    version='1.11.1',
     app=APP,
     data_files=DATA_FILES,
     options=OPTIONS,

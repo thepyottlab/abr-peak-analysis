@@ -1,5 +1,11 @@
 ## Changelog
 
+### v1.11.1 (2026-01-30)
+#### Fixed
+- handle minor change to standard ABR file format introduced in CFTS V3.4
+
+---
+
 ### v1.11 (2025-01-30)
 #### Added
 - support for Fast ABR data files

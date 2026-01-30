@@ -194,6 +194,13 @@ def load_comprehensive_cfts_data(fname, invert=False, filter=False, fdict=None, 
             else:
                 levels = array(levelstring).astype(float)
 
+            p_fs = re.compile('Response.Sampling rate \(Hz\)=([0-9.]+)')
+            
+            match = p_fs.search(header)
+            if match == None:
+                p_fs = re.compile('Response.Fs \(Hz\)=([0-9.]+)')
+                match = p_fs.search(header)
+                
             fs = float(p_fs.search(header).group(1))
             abr_window = float(p_win.search(header).group(1))
 
