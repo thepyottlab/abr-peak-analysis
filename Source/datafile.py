@@ -82,6 +82,9 @@ def loadabr(fname, invert=False, filter=False, fdict=None, polarity=ABRStimPolar
             if data.startswith('[FAST ABR]'):
                 return load_fast_abr_data(fname, invert, filter, fdict)
 
+            if data.startswith('[CUSTOM ABR]'):
+                return load_custom_abr_data(fname, invert, filter, fdict)
+
             header, data = data.split('DATA')
 
             levelstring = p_level.search(header).group(1).strip(';').split(';')
@@ -346,7 +349,78 @@ def load_fast_abr_data(fname, invert=False, filter=False, fdict=None, polarity=A
     except (AttributeError, ValueError):
         msg = 'Could not parse %s.  Most likely not a valid ABR file.' % fname
         raise IOError(msg)
-                                 
+
+
+def load_custom_abr_data(fname, invert=False, filter=False, fdict=None, polarity=ABRStimPolarity.Avg, noiseFloor=False):
+    p_level = re.compile('Levels=([\-0-9.; Inf]+)')
+    p_fs = re.compile('Response.Fs \(Hz\)=([0-9.]+)')
+    p_win = re.compile('Response.Window \(ms\)=([0-9.]+)')
+    p_freq = re.compile('Frequency \(kHz\)=([0-9.]+)')
+    p_time = re.compile('Date=([\w\d/\s:]+)\n')
+
+    try:
+        with open(fname, encoding='latin-1') as f:
+            data = f.read()
+
+            header, data = data.split('[DATA]')
+
+            levelstring = p_level.search(header).group(1).strip(';').split(';')
+            if levelstring[0] == " ":
+                levels = array([0], dtype='f')
+            else:
+                levels = array(levelstring).astype(float)
+
+            fs = float(p_fs.search(header).group(1))
+            abr_window = float(p_win.search(header).group(1))
+
+            data = data.split('\n', 2)
+            data = array(data[2].split()).astype(float)
+
+            ncol = len(levels)
+            data = data.reshape(int(len(data) / ncol), ncol).T
+
+            dataSum = data[0:len(levels), :]
+
+            if polarity != ABRStimPolarity.Avg:
+                raise ValueError("This file format only supports Avg polarity.")
+            data = dataSum
+
+            if invert:
+                data = -data
+
+            waveforms = [abrwaveform(fs, w, l) for w, l in zip(data, levels)]
+
+            # Checks for an ABR I-O bug that sometimes saves zeroed waveforms
+            # Also excludes controls
+            for w in waveforms[:]:
+                if (w.y == 0).all():
+                    waveforms.remove(w)
+
+            if filter:
+                waveforms = [w.filtered(**fdict) for w in waveforms]
+
+            freq = float(p_freq.search(header).group(1))
+
+            dataType = ABRDataType.CFTS
+            varyMasker = False
+
+            # Instantiate ABR series
+            series = abrseries(waveforms, freq, None, dataType, polarity, varyMasker)
+            series.compute_corrcoefs()
+            series.filename = fname
+            series.time = p_time.search(header).group(1)
+            series.Tmax = abr_window
+
+            if noiseFloor:
+                raise ValueError(
+                    "Noise floor calculation requires difference waveforms, not available in this file format.")
+
+            return series
+
+    except (AttributeError, ValueError):
+        msg = 'Could not parse %s.  Most likely not a valid ABR file.' % fname
+        raise IOError(msg)
+
 
 def loadclinicalabr(fname, invert=False, filter=False, fdict=None):
 
