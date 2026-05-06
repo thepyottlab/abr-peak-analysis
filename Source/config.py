@@ -19,7 +19,13 @@ class DefaultValueHolder(object):
         if sys.platform == 'win32':
             self.configpath = os.environ['ALLUSERSPROFILE'] + '\\' + appName + ".ini"
         else:
-            self.configpath = '/Users/' + os.getlogin() + '/Library/Preferences/' + appName + ' Preferences'
+            home = os.path.expanduser("~")
+            self.configpath = os.path.join(
+                home,
+                "Library",
+                "Preferences",
+                f"{appName} Preferences"
+            )
         
  
     def __getattribute__(self, name):
