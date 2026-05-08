@@ -178,13 +178,15 @@ def loadabr(fname, invert=False, filter=False, fdict=None, polarity=ABRStimPolar
             waveforms, adjusted_window = apply_time_range(waveforms, t_min, t_max, fs)
             if adjusted_window is not None:
                 abr_window = adjusted_window
+            else:
+                abr_window = cutoff / fs * 1000
 
             # Instantiate ABR series
             series = abrseries(waveforms, freq, None, dataType, polarity, varyMasker)
             series.compute_corrcoefs()
             series.filename = fname
             series.time = p_time.search(header).group(1)
-            series.Tmax = cutoff / fs * 1000
+            series.Tmax = abr_window
 
             if noiseFloor:
                 series.find_noise_floor(dataDiff)
@@ -576,7 +578,7 @@ def loadclinicalabr(fname, invert=False, filter=False, fdict=None, t_min=0, t_ma
             series = abrseries(waveforms, freq, None, ABRDataType.Clinical, ABRStimPolarity.Avg)
             abrseries.filename = fname
             abrseries.time = t
-            abrseries.Tmax = max(t) * 1000
+            abrseries.Tmax = abr_window
             return series
 
     except (AttributeError, ValueError):
@@ -594,7 +596,7 @@ def loadtextfile(fname, invert=False, filter=False, fdict=None, t_min=0, t_max=0
             data = f.read()
 
             if data.startswith('Identifier:'):
-                return load_caspary_text_file(fname, invert, filter, fdict)
+                return load_caspary_text_file(fname, invert, filter, fdict, t_min, t_max)
 
             header, data = data.split('\n', 1)
 
@@ -635,14 +637,14 @@ def loadtextfile(fname, invert=False, filter=False, fdict=None, t_min=0, t_max=0
 
             #Temporary -- add code to convert to actual date/time object
             abrseries.time = t
-            abrseries.Tmax = max(t) * 1000
+            abrseries.Tmax = abr_window
             return series
 
     except (AttributeError, ValueError):
         msg = 'Could not parse %s.  Most likely not a valid CSV file.' % fname
         raise IOError(msg)
 
-def load_caspary_text_file(fname, invert=False, filter=False, fdict=None):
+def load_caspary_text_file(fname, invert=False, filter=False, fdict=None, tmin=0, tmax=0):
 
     try:
         with open(fname) as f:
@@ -700,7 +702,7 @@ def load_caspary_text_file(fname, invert=False, filter=False, fdict=None):
 
             #Temporary -- add code to convert to actual date/time object
             abrseries.time = t
-            abrseries.Tmax = max(t) * 1000
+            abrseries.Tmax = abr_window
             return series
 
     except (AttributeError, ValueError):
@@ -738,7 +740,7 @@ def load_anecs_file(fname, invert=False, filter=False, fdict=None, t_min = 0, t_
 
         #Temporary -- add code to convert to actual date/time object
         abrseries.time = t
-        abrseries.Tmax = max(t) * 1000
+        abrseries.Tmax = abr_window
         return series
 
     except (AttributeError, ValueError):
