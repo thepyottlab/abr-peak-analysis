@@ -32,10 +32,10 @@ def listdir(dir, match, incdirs=False):
 
 def loadmodel(fname, invert, polarity, useNoiseFloor):
     filter = DefaultValueHolder("PhysiologyNotebook", "filter")
-    filter.SetVariables(ftype="butterworth", fl=10000, fh=200)
+    filter.SetVariables(ftype="butterworth", fl=10000, fh=200, N = 1)
     filter.InitFromConfig()
 
-    fdict = {'ftype': filter.ftype, 'W': (filter.fh, filter.fl)}
+    fdict = {'ftype': filter.ftype, 'W': (filter.fh, filter.fl), 'N': filter.N}
     return peakio.load(fname, invert, fdict, polarity, useNoiseFloor)
 
 #----------------------------------------------------------------------------
@@ -409,7 +409,7 @@ class PhysiologyOptions(wx.Dialog):
             pos=wx.DefaultPosition, style=wx.DEFAULT_DIALOG_STYLE):
 
         self.filter = DefaultValueHolder('PhysiologyNotebook','filter')
-        self.filter.SetVariables(ftype='Butterworth', fl=10000, fh=200)
+        self.filter.SetVariables(ftype='Butterworth', fl=10000, fh=200, N=1)
         self.filter.InitFromConfig()
         self.file = DefaultValueHolder('PhysiologyNotebook','file')
         self.file.SetVariables(startdir='.')
@@ -497,6 +497,18 @@ class PhysiologyOptions(wx.Dialog):
         if filter.ftype == 'None':
             self.fh.Disable()
             self.fl.Disable()
+
+        #Order
+        label = wx.StaticText(self, wx.ID_ANY, "Order:")
+        box.Add(label, 0, wx.ALL, 5)
+        self.ford = wx.TextCtrl(self, wx.ID_ANY, str(filter.N),
+                                size=(75, -1), validator=FrequencyValidator())
+        box.Add(self.ford, 0, wx.ALL, 5)
+
+        #Roll-off info
+        self.ford_info = wx.StaticText(self, wx.ID_ANY, self._get_rolloff_label(filter.N))
+        box.Add(self.ford_info, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
+        self.ford.Bind(wx.EVT_TEXT, self.OnOrderChanged)
 
         #stim polarity
         pbox = wx.StaticBox(self, wx.ID_ANY, "")
@@ -587,7 +599,7 @@ class PhysiologyOptions(wx.Dialog):
             self.file.SetVariables(startdir=self.dbb.GetValue())
             self.file.UpdateConfig()
             self.filter.SetVariables(ftype=self.ftype.GetString(self.ftype.GetSelection()),
-                    fl=int(self.fl.GetValue()), fh=int(self.fh.GetValue()))
+                    fl=int(self.fl.GetValue()), fh=int(self.fh.GetValue()), N=int(self.ford.GetValue()))
             self.filter.UpdateConfig()
             self.showallpol.SetVariables(value=self.cb.GetValue())
             self.showallpol.UpdateConfig()
@@ -661,6 +673,16 @@ class PhysiologyOptions(wx.Dialog):
         else:
             self.fh.Enable()
             self.fl.Enable()
+
+    def _get_rolloff_label(self, N):
+        try:
+            rolloff = int(N) * 12
+            return f"({rolloff} dB/oct effective)"
+        except (ValueError, TypeError):
+            return ""
+
+    def OnOrderChanged(self, evt):
+        self.ford_info.SetLabel(self._get_rolloff_label(self.ford.GetValue()))
 
 #----------------------------------------------------------------------------
 
