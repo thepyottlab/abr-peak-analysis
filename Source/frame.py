@@ -269,6 +269,11 @@ class PhysiologyFrame(PersistentFrame):
         file.Append(wx.ID_EXIT, '&Quit\tCtrl+Q', 'Quit Application')
         menubar.Append(file, '&File')
 
+        convert = wx.Menu()
+        ID_CONVERT_IHS = wx.NewId()
+        convert.Append(ID_CONVERT_IHS, 'Convert &IHS files', 'Convert IHS files')
+        menubar.Append(convert, '&Convert')
+
         help = wx.Menu()
         ID_DISPLAY_HELP = wx.NewId()
         help.Append(ID_DISPLAY_HELP, '&Help\tCtrl+H', 'Help')
@@ -286,6 +291,7 @@ class PhysiologyFrame(PersistentFrame):
         self.Bind(wx.EVT_MENU, self.OnCloseTab, id=ID_CLOSE_TAB)
         self.Bind(wx.EVT_MENU, self.OnCloseAllBut, id=ID_CLOSE_ALL_BUT)
         self.Bind(wx.EVT_MENU, self.OnCloseAllTabs, id=ID_CLOSE_ALL_TABS)
+        self.Bind(wx.EVT_MENU, self.OnConvertIHS, id=ID_CONVERT_IHS)
         self.Bind(wx.EVT_MENU, self.OnDisplayHelp, id=ID_DISPLAY_HELP)
 
         #Initialize manager and panels
@@ -327,6 +333,21 @@ class PhysiologyFrame(PersistentFrame):
         self.CreateStatusBar()
         self.SetStatusText('Please drag and drop files to canvas')
         self.Show()
+
+    def OnConvertIHS(self, evt):
+        import convert_ihs
+        self.SetStatusText('Running IHS to .tsv converter...')
+        try:
+            convert_ihs.run()
+            self.SetStatusText('Converted IHS files successfully. '
+                               'Please drag and drop files to canvas.')
+        except Exception as e:
+            self.SetStatusText('Could not parse IHS file. '
+                               'Most likely not a valid IHS export file.')
+            dlg = wx.MessageDialog(self, str(e), 'Conversion Error',
+                                   wx.OK | wx.ICON_ERROR)
+            dlg.ShowModal()
+            dlg.Destroy()
         
     def OnDisplayHelp(self, evt):
         # self.help.DisplayContents()
