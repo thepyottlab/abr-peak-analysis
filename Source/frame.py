@@ -541,11 +541,6 @@ class PhysiologyOptions(wx.Dialog):
         box.Add(self.fl, 0, wx.ALL, 5)
         fsizer.Add(box, 0, wx.GROW|wx.ALL, 5)
 
-        if filter.ftype == 'None':
-            self.fh.Disable()
-            self.fl.Disable()
-            self.ford.Disable()
-
         #Order
         label = wx.StaticText(self, wx.ID_ANY, "Order:")
         box.Add(label, 0, wx.ALL, 5)
@@ -557,6 +552,11 @@ class PhysiologyOptions(wx.Dialog):
         self.ford_info = wx.StaticText(self, wx.ID_ANY, self._get_rolloff_label(filter.N))
         box.Add(self.ford_info, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
         self.ford.Bind(wx.EVT_TEXT, self.OnOrderChanged)
+
+        if filter.ftype == 'None':
+            self.fh.Disable()
+            self.fl.Disable()
+            self.ford.Disable()
 
         # Custom Tmin
         wbox = wx.StaticBox(self, wx.ID_ANY, "Waveform Window")

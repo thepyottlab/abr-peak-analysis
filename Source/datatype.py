@@ -107,7 +107,7 @@ class waveform(object):
         using a 1st order butterworth, which essentially has the same effect
         as a 2nd order with lfilt (but without the phase delay).  
         """
-        Wn = np.asarray(W) / self.fs
+        Wn = np.asarray(W) / (self.fs / 2)
         Wn[1] = min(Wn[1], 0.95)
         kwargs = dict(N=N, Wn=Wn, btype=btype, ftype=ftype)
         
