@@ -12,7 +12,6 @@ from __future__ import division
 
 __author__ = 'Brad Buran, bburan@alum.mit.edu'
 
-from signal_additional import filtfilt
 from scipy import signal as sig
 import numpy as np
 from copy import deepcopy
@@ -112,12 +111,12 @@ class waveform(object):
         Wn[1] = min(Wn[1], 0.95)
         kwargs = dict(N=N, Wn=Wn, btype=btype, ftype=ftype)
         
-        b, a = sig.iirfilter(output='ba', **kwargs)
+        sos = sig.iirfilter(output='sos', **kwargs)
 
         zpk = sig.iirfilter(output='zpk', **kwargs)
 
         self._zpk.append(zpk)
-        if method == 'filtfilt': self.y = filtfilt(b, a, self.y)
+        if method == 'filtfilt': self.y = sig.sosfiltfilt(sos, self.y)
         else: raise NotImplementedError('%s not supported' % method)
 
     def rectify(self, cutoff=0):
