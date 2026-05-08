@@ -14,7 +14,7 @@ def select_file():
 
 #-------------------------------------------------------------------------------
 
-class EPLTemplate(object):
+class TSVTemplate(object):
     """Represents the structure of a CUSTOM ABR file.
 
     Header lines carry trailing tabs equal to (n_levels - 1) so every row
@@ -73,7 +73,7 @@ class EPLTemplate(object):
         levels_str = ';'.join(str(l) for l in self.levels) + ';'
 
         lines = [
-            self._header_line('[CUSTOM ABR]', t),
+            self._header_line('[IHS ABR]', t),
             self._header_line(f'Date={self.date}', t),
             self._header_line(f'Levels={levels_str}', t),
             self._header_line('[Params]', t),
@@ -223,12 +223,9 @@ def main(file_path):
             recordname = f"{rec_list[0].SystemID} {frequency_name}"
             print(f"Converting {recordname} to an Eaton-Peabody file")
 
-            # Sampling rate from sampling period (µs); response window from
-            # period and sweep count
-            sweeps          = max(to_numeric(r.Sweeps) for r in rec_list)
+            # Sampling rate from sampling period (µs)
             sample_interval = to_numeric(rec_list[0].SamplingRate)  # µs
             response_fs     = 1 / (sample_interval * 1e-6)
-            response_window = sample_interval * sweeps / 1000       # ms
 
             # Intensity levels
             levels = [int(to_numeric(r.Intensity)) for r in rec_list]
@@ -244,10 +241,11 @@ def main(file_path):
             if np.all(np.isnan(raw_array[-1])):
                 raw_array = raw_array[:-1]
 
-            data_length = len(raw_array) // 2
-            raw_array   = raw_array[data_length:]
+            # Response window from n_rows and sampling period (µs)
+            response_window = sample_interval * n_rows / 1000
 
-            template = EPLTemplate(
+            # Fill in template and write file
+            template = TSVTemplate(
                 date=date_str,
                 levels=levels,
                 stimulus_frequency=frequency_khz,

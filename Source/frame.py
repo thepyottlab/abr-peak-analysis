@@ -527,6 +527,7 @@ class PhysiologyOptions(wx.Dialog):
         if filter.ftype == 'None':
             self.fh.Disable()
             self.fl.Disable()
+            self.ford.Disable()
 
         #Order
         label = wx.StaticText(self, wx.ID_ANY, "Order:")
@@ -700,9 +701,11 @@ class PhysiologyOptions(wx.Dialog):
         if evt.GetString() == 'None':
             self.fh.Disable()
             self.fl.Disable()
+            self.ford.Disable()
         else:
             self.fh.Enable()
             self.fl.Enable()
+            self.ford.Enable()
 
     def _get_rolloff_label(self, N):
         try:
