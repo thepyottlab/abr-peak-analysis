@@ -38,13 +38,26 @@ def get_stim_freq(fname):
                     freq = 0
                 else:
                     freq = float(freqStr)
-                    
+
         return freq
-            
+
     except (AttributeError, ValueError):
         return 0
 
-def loadabr(fname, invert=False, filter=False, fdict=None, polarity=ABRStimPolarity.Avg, noiseFloor=False):
+
+def apply_time_range(waveforms, t_min, t_max, fs):
+    """Crop waveforms to [t_min, t_max] ms and remap time to start at 0."""
+    if t_min <= 0 and t_max <= 0:
+        return waveforms, None
+    i_min = int(round(t_min * fs / 1000)) if t_min > 0 else 0
+    for w in waveforms:
+        i_max = int(round(t_max * fs / 1000)) if t_max > 0 else len(w.y)
+        w.y = w.y[i_min:i_max]
+        w.x = numpy.arange(len(w.y)) * 1000.0 / w.fs
+    new_window = (t_max - t_min) if (t_min > 0 or t_max > 0) else None
+    return waveforms, new_window
+
+def loadabr(fname, invert=False, filter=False, fdict=None, polarity=ABRStimPolarity.Avg, noiseFloor=False, t_min=0, t_max=0):
     f, ext = os.path.splitext(fname)
     if ext == '.csv':
         return loadclinicalabr(fname, invert, filter, fdict)
@@ -52,7 +65,7 @@ def loadabr(fname, invert=False, filter=False, fdict=None, polarity=ABRStimPolar
         return loadtextfile(fname, invert, filter, fdict)
     if ext == '.anx':
         return load_anecs_file(fname, invert, filter, fdict)
-    
+
     p_level = re.compile(':LEVELS:([\-0-9.; Inf]+)')
     p_fs = re.compile('SAMPLE \(.sec\): ([0-9.]+)')
     p_freq = re.compile('FREQ: ([\w.]+)')
@@ -62,7 +75,7 @@ def loadabr(fname, invert=False, filter=False, fdict=None, polarity=ABRStimPolar
     time_pattern = '([\d]{1,2}/[\d]{1,2}/[\d]{4}[\t\s]' + \
                   '[\d]{1,2}:[\d]{1,2}(:[\d]{1,2})?\s[APM]{2})'
     p_time = re.compile(time_pattern)
-    
+
     abr_window = 8500 #usec
 
     dataType = ABRDataType.CFTS
@@ -71,22 +84,22 @@ def loadabr(fname, invert=False, filter=False, fdict=None, polarity=ABRStimPolar
     isVsEP = fn.startswith('VsEP')
     if isVsEP:
         dataType = ABRDataType.VsEP
-    
+
     try:
         with open(fname, encoding='latin-1') as f:
             data = f.read()
-            
+
             if data.startswith('[STANDARD ABR]'):
-                return load_comprehensive_cfts_data(fname, invert, filter, fdict)
+                return load_comprehensive_cfts_data(fname, invert, filter, fdict, t_min=t_min, t_max=t_max)
 
             if data.startswith('[FAST ABR]'):
-                return load_fast_abr_data(fname, invert, filter, fdict)
+                return load_fast_abr_data(fname, invert, filter, fdict, t_min=t_min, t_max=t_max)
 
             if data.startswith('[IHS ABR]'):
-                return load_ihs_abr_data(fname, invert, filter, fdict)
+                return load_ihs_abr_data(fname, invert, filter, fdict, t_min=t_min, t_max=t_max)
 
             if data.startswith('[CUSTOM ABR]'):
-                return load_custom_abr_data(fname, invert, filter, fdict)
+                return load_custom_abr_data(fname, invert, filter, fdict, t_min=t_min, t_max=t_max)
 
             header, data = data.split('DATA')
 
@@ -105,7 +118,7 @@ def loadabr(fname, invert=False, filter=False, fdict=None, polarity=ABRStimPolar
                 controlVal = float('-inf')
             else:
                 controlVal = float(controlStr.group(1))
-                
+
             varyWhich = p_varywhich.search(header)
             if varyWhich == None:
                 varyMasker = numpy.any(levels == controlVal)
@@ -116,13 +129,13 @@ def loadabr(fname, invert=False, filter=False, fdict=None, polarity=ABRStimPolar
 
             cutoff = int(len(data)/len(levels) / 2);
             data = data.reshape(int(len(data) / len(levels)), len(levels)).T
-            
+
             dataSum = data[:,:cutoff]
             dataDiff = data[:, cutoff:]
-            
+
             # compute condensation and rarefaction traces from sum and difference
             dataCond = dataSum + dataDiff
-            dataRare = dataSum - dataDiff            
+            dataRare = dataSum - dataDiff
 
             # select the stimulus polarity specified by the user
             if polarity == ABRStimPolarity.Avg:
@@ -131,7 +144,7 @@ def loadabr(fname, invert=False, filter=False, fdict=None, polarity=ABRStimPolar
                 data = dataCond
             if polarity == ABRStimPolarity.Rarefaction:
                 data = dataRare
-            
+
             if invert:
                 data = -data
 
@@ -145,7 +158,7 @@ def loadabr(fname, invert=False, filter=False, fdict=None, polarity=ABRStimPolar
 
             if filter:
                 waveforms = [w.filtered(**fdict) for w in waveforms]
-            
+
             # parse stimulus waveform description
             if isVsEP:
                 freq = -1
@@ -162,7 +175,11 @@ def loadabr(fname, invert=False, filter=False, fdict=None, polarity=ABRStimPolar
                     else:
                         freq = float(freqStr)
 
-            # Instantiate ABR series                    
+            waveforms, adjusted_window = apply_time_range(waveforms, t_min, t_max, fs)
+            if adjusted_window is not None:
+                abr_window = adjusted_window
+
+            # Instantiate ABR series
             series = abrseries(waveforms, freq, None, dataType, polarity, varyMasker)
             series.compute_corrcoefs()
             series.filename = fname
@@ -179,7 +196,7 @@ def loadabr(fname, invert=False, filter=False, fdict=None, polarity=ABRStimPolar
         raise IOError(msg)
 
 
-def load_comprehensive_cfts_data(fname, invert=False, filter=False, fdict=None, polarity=ABRStimPolarity.Avg, noiseFloor=False):
+def load_comprehensive_cfts_data(fname, invert=False, filter=False, fdict=None, polarity=ABRStimPolarity.Avg, noiseFloor=False, t_min=0, t_max=0):
 
     p_level = re.compile('Levels=([\-0-9.; Inf]+)')
     p_fs = re.compile('Response.Sampling rate \(Hz\)=([0-9.]+)')
@@ -191,7 +208,7 @@ def load_comprehensive_cfts_data(fname, invert=False, filter=False, fdict=None, 
     try:
         with open(fname, encoding='latin-1') as f:
             data = f.read()
-            
+
             header, data = data.split('[DATA]')
 
             levelstring = p_level.search(header).group(1).strip(';').split(';')
@@ -201,12 +218,12 @@ def load_comprehensive_cfts_data(fname, invert=False, filter=False, fdict=None, 
                 levels = array(levelstring).astype(float)
 
             p_fs = re.compile('Response.Sampling rate \(Hz\)=([0-9.]+)')
-            
+
             match = p_fs.search(header)
             if match == None:
                 p_fs = re.compile('Response.Fs \(Hz\)=([0-9.]+)')
                 match = p_fs.search(header)
-                
+
             fs = float(p_fs.search(header).group(1))
             abr_window = float(p_win.search(header).group(1))
 
@@ -215,13 +232,13 @@ def load_comprehensive_cfts_data(fname, invert=False, filter=False, fdict=None, 
 
             ncol = len(levels) * 2 + 1
             data = data.reshape(int(len(data) / ncol), ncol).T
-            
+
             dataSum = data[1:len(levels)+1,:]
             dataDiff = data[(len(levels) + 1):, :]
-            
+
             # compute condensation and rarefaction traces from sum and difference
             dataCond = dataSum + dataDiff
-            dataRare = dataSum - dataDiff            
+            dataRare = dataSum - dataDiff
 
             # select the stimulus polarity specified by the user
             if polarity == ABRStimPolarity.Avg:
@@ -230,7 +247,7 @@ def load_comprehensive_cfts_data(fname, invert=False, filter=False, fdict=None, 
                 data = dataCond
             if polarity == ABRStimPolarity.Rarefaction:
                 data = dataRare
-            
+
             if invert:
                 data = -data
 
@@ -244,19 +261,22 @@ def load_comprehensive_cfts_data(fname, invert=False, filter=False, fdict=None, 
 
             if filter:
                 waveforms = [w.filtered(**fdict) for w in waveforms]
-            
+
             waveShape = p_wav.search(header).group(1)
-            
+
             if waveShape == 'CLICK':
                 freq = 0
             else:
                 freq = float(p_freq.search(header).group(1))
 
-
             dataType = ABRDataType.CFTS
             varyMasker = False
-            
-            # Instantiate ABR series                    
+
+            waveforms, adjusted_window = apply_time_range(waveforms, t_min, t_max, fs)
+            if adjusted_window is not None:
+                abr_window = adjusted_window
+
+            # Instantiate ABR series
             series = abrseries(waveforms, freq, None, dataType, polarity, varyMasker)
             series.compute_corrcoefs()
             series.filename = fname
@@ -271,9 +291,9 @@ def load_comprehensive_cfts_data(fname, invert=False, filter=False, fdict=None, 
     except (AttributeError, ValueError):
         msg = 'Could not parse %s.  Most likely not a valid ABR file.' % fname
         raise IOError(msg)
-                                 
 
-def load_fast_abr_data(fname, invert=False, filter=False, fdict=None, polarity=ABRStimPolarity.Avg, noiseFloor=False):
+
+def load_fast_abr_data(fname, invert=False, filter=False, fdict=None, polarity=ABRStimPolarity.Avg, noiseFloor=False, t_min=0, t_max=0):
 
     p_level = re.compile('Levels=([\-0-9.; Inf]+)')
     p_fs = re.compile('Response.Fs \(Hz\)=([0-9.]+)')
@@ -284,7 +304,7 @@ def load_fast_abr_data(fname, invert=False, filter=False, fdict=None, polarity=A
     try:
         with open(fname, encoding='latin-1') as f:
             data = f.read()
-            
+
             header, data = data.split('[DATA]')
 
             levelstring = p_level.search(header).group(1).strip(';').split(';')
@@ -301,13 +321,13 @@ def load_fast_abr_data(fname, invert=False, filter=False, fdict=None, polarity=A
 
             ncol = len(levels) * 2 + 1
             data = data.reshape(int(len(data) / ncol), ncol).T
-            
+
             dataSum = data[1:len(levels)+1,:]
             dataDiff = data[(len(levels) + 1):, :]
-            
+
             # compute condensation and rarefaction traces from sum and difference
             dataCond = dataSum + dataDiff
-            dataRare = dataSum - dataDiff            
+            dataRare = dataSum - dataDiff
 
             # select the stimulus polarity specified by the user
             if polarity == ABRStimPolarity.Avg:
@@ -316,7 +336,7 @@ def load_fast_abr_data(fname, invert=False, filter=False, fdict=None, polarity=A
                 data = dataCond
             if polarity == ABRStimPolarity.Rarefaction:
                 data = dataRare
-            
+
             if invert:
                 data = -data
 
@@ -330,14 +350,17 @@ def load_fast_abr_data(fname, invert=False, filter=False, fdict=None, polarity=A
 
             if filter:
                 waveforms = [w.filtered(**fdict) for w in waveforms]
-            
-            freq = float(p_freq.search(header).group(1))
 
+            freq = float(p_freq.search(header).group(1))
 
             dataType = ABRDataType.CFTS
             varyMasker = False
-            
-            # Instantiate ABR series                    
+
+            waveforms, adjusted_window = apply_time_range(waveforms, t_min, t_max, fs)
+            if adjusted_window is not None:
+                abr_window = adjusted_window
+
+            # Instantiate ABR series
             series = abrseries(waveforms, freq, None, dataType, polarity, varyMasker)
             series.compute_corrcoefs()
             series.filename = fname
@@ -354,7 +377,7 @@ def load_fast_abr_data(fname, invert=False, filter=False, fdict=None, polarity=A
         raise IOError(msg)
 
 
-def load_ihs_abr_data(fname, invert=False, filter=False, fdict=None, polarity=ABRStimPolarity.Avg, noiseFloor=False):
+def load_ihs_abr_data(fname, invert=False, filter=False, fdict=None, polarity=ABRStimPolarity.Avg, noiseFloor=False, t_min=0, t_max=0):
     p_level = re.compile('Levels=([\-0-9.; Inf]+)')
     p_fs = re.compile('Response.Fs \(Hz\)=([0-9.]+)')
     p_win = re.compile('Response.Window \(ms\)=([0-9.]+)')
@@ -407,6 +430,10 @@ def load_ihs_abr_data(fname, invert=False, filter=False, fdict=None, polarity=AB
             dataType = ABRDataType.CFTS
             varyMasker = False
 
+            waveforms, adjusted_window = apply_time_range(waveforms, t_min, t_max, fs)
+            if adjusted_window is not None:
+                abr_window = adjusted_window
+
             # Instantiate ABR series
             series = abrseries(waveforms, freq, None, dataType, polarity, varyMasker)
             series.compute_corrcoefs()
@@ -425,7 +452,7 @@ def load_ihs_abr_data(fname, invert=False, filter=False, fdict=None, polarity=AB
         raise IOError(msg)
 
 
-def load_custom_abr_data(fname, invert=False, filter=False, fdict=None, polarity=ABRStimPolarity.Avg, noiseFloor=False):
+def load_custom_abr_data(fname, invert=False, filter=False, fdict=None, polarity=ABRStimPolarity.Avg, noiseFloor=False, t_min=0, t_max=0):
     p_level = re.compile('Levels=([\-0-9.; Inf]+)')
     p_fs = re.compile('Response.Fs \(Hz\)=([0-9.]+)')
     p_win = re.compile('Response.Window \(ms\)=([0-9.]+)')
@@ -478,6 +505,10 @@ def load_custom_abr_data(fname, invert=False, filter=False, fdict=None, polarity
             dataType = ABRDataType.CFTS
             varyMasker = False
 
+            waveforms, adjusted_window = apply_time_range(waveforms, t_min, t_max, fs)
+            if adjusted_window is not None:
+                abr_window = adjusted_window
+
             # Instantiate ABR series
             series = abrseries(waveforms, freq, None, dataType, polarity, varyMasker)
             series.compute_corrcoefs()
@@ -496,7 +527,7 @@ def load_custom_abr_data(fname, invert=False, filter=False, fdict=None, polarity
         raise IOError(msg)
 
 
-def loadclinicalabr(fname, invert=False, filter=False, fdict=None):
+def loadclinicalabr(fname, invert=False, filter=False, fdict=None, t_min=0, t_max=0):
 
     try:
         with open(fname) as f:
@@ -517,8 +548,8 @@ def loadclinicalabr(fname, invert=False, filter=False, fdict=None):
             else:
                 data = data[1:, :]
 
-            data = 1e6 * data            
-            
+            data = 1e6 * data
+
             sampling_period = t[1] - t[0]
             fs = 1/sampling_period
 
@@ -537,6 +568,11 @@ def loadclinicalabr(fname, invert=False, filter=False, fdict=None):
                 waveforms = [w.filtered(**fdict) for w in waveforms]
 
             freq = -1
+
+            waveforms, adjusted_window = apply_time_range(waveforms, t_min, t_max, fs)
+            if adjusted_window is not None:
+                abr_window = adjusted_window
+
             series = abrseries(waveforms, freq, None, ABRDataType.Clinical, ABRStimPolarity.Avg)
             abrseries.filename = fname
             abrseries.time = t
@@ -546,20 +582,20 @@ def loadclinicalabr(fname, invert=False, filter=False, fdict=None):
     except (AttributeError, ValueError):
         msg = 'Could not parse %s.  Most likely not a valid CSV file.' % fname
         raise IOError(msg)
-    
-def loadtextfile(fname, invert=False, filter=False, fdict=None):
+
+def loadtextfile(fname, invert=False, filter=False, fdict=None, t_min=0, t_max=0):
 
 #    p_level = re.compile(':LEVELS:([\-0-9;]+)')
 #    p_fs = re.compile('SAMPLE \(.sec\): ([0-9]+)')
 #    p_freq = re.compile('FREQ: ([\w.]+)')
-    
+
     try:
         with open(fname) as f:
             data = f.read()
-            
+
             if data.startswith('Identifier:'):
                 return load_caspary_text_file(fname, invert, filter, fdict)
-                            
+
             header, data = data.split('\n', 1)
 
             cols = header.split('\t')
@@ -575,7 +611,7 @@ def loadtextfile(fname, invert=False, filter=False, fdict=None):
 
             t = data[0,:]
             data = 1e6 * data[1:, :]
-            
+
             sampling_period = t[1] - t[0]
             fs = 1/sampling_period
 
@@ -586,6 +622,10 @@ def loadtextfile(fname, invert=False, filter=False, fdict=None):
 
             if filter:
                 waveforms = [w.filtered(**fdict) for w in waveforms]
+
+            waveforms, adjusted_window = apply_time_range(waveforms, t_min, t_max, fs)
+            if adjusted_window is not None:
+                abr_window = adjusted_window
 
             #freq = float(re.search('([0-9]+)kHz', header).group(1))
             freq = 0
@@ -601,21 +641,21 @@ def loadtextfile(fname, invert=False, filter=False, fdict=None):
     except (AttributeError, ValueError):
         msg = 'Could not parse %s.  Most likely not a valid CSV file.' % fname
         raise IOError(msg)
-    
+
 def load_caspary_text_file(fname, invert=False, filter=False, fdict=None):
 
     try:
         with open(fname) as f:
             data = f.read()
-            
+
             levelStr = re.compile('Intensity:([\d,]+)').search(data).group(1)
             levelList = re.compile(',+([\d]+)').findall(levelStr)
             levels = [float(x) for x in levelList]
-            
+
             dtStr = re.compile('Smp. Period:([\d\.,]+)').search(data).group(1)
             dtList = re.compile(',+([\d\.]+)').findall(dtStr)
             dt = [float(x) for x in dtList]
-            
+
             freqStr = re.compile('Stim. Freq.([\d,]+)').search(data).group(1)
             freqList = re.compile(',+([\d]+)').findall(freqStr)
             freqs = [float(x) for x in freqList]
@@ -624,7 +664,7 @@ def load_caspary_text_file(fname, invert=False, filter=False, fdict=None):
             zeroList = re.compile(',+([\d]+)').findall(zeroStr)
             zeroPositions = [float(x) for x in zeroList]
             izero = int(zeroPositions[0])
-            
+
             dataStr = data.split('Data Pnt')[1].split('\n', 1)[1]
             a = array(dataStr.replace(',', ' ').split()).astype(float)
             numCols = len(levels) * 6 + 1
@@ -639,7 +679,7 @@ def load_caspary_text_file(fname, invert=False, filter=False, fdict=None):
             t = t[istart:] - t0
 
             data = y[2::6, :]
-            
+
             fs = 1e6 / dt[0]
 
             if invert:
@@ -650,6 +690,10 @@ def load_caspary_text_file(fname, invert=False, filter=False, fdict=None):
             if filter:
                 waveforms = [w.filtered(**fdict) for w in waveforms]
 
+            waveforms, adjusted_window = apply_time_range(waveforms, t_min, t_max, fs)
+            if adjusted_window is not None:
+                abr_window = adjusted_window
+
             series = abrseries(waveforms, freqs[0] / 1000, None, ABRDataType.CFTS, ABRStimPolarity.Avg)
             series.compute_corrcoefs()
             abrseries.filename = fname
@@ -658,20 +702,20 @@ def load_caspary_text_file(fname, invert=False, filter=False, fdict=None):
             abrseries.time = t
             abrseries.Tmax = max(t) * 1000
             return series
-            
+
     except (AttributeError, ValueError):
         msg = 'Could not parse %s.  Most likely not a valid CSV file.' % fname
         raise IOError(msg)
-            
-def load_anecs_file(fname, invert=False, filter=False, fdict=None):
+
+def load_anecs_file(fname, invert=False, filter=False, fdict=None, t_min = 0, t_max = 0):
 
     try:
         anecs = ANECS(fname)
         levels = anecs.inner.vals
-        
+
         ichan = int(anecs.inner.channels)
         freq = anecs.stim.channels[ichan-1].param[0].value
-        
+
         fs = anecs.resp.samplingRate * 1000
         t = anecs.waveforms.time_s
         data = anecs.waveforms.data_uV
@@ -684,6 +728,10 @@ def load_anecs_file(fname, invert=False, filter=False, fdict=None):
         if filter:
             waveforms = [w.filtered(**fdict) for w in waveforms]
 
+        waveforms, adjusted_window = apply_time_range(waveforms, t_min, t_max, fs)
+        if adjusted_window is not None:
+            abr_window = adjusted_window
+
         series = abrseries(waveforms, freq, None, ABRDataType.CFTS, ABRStimPolarity.Avg)
         series.compute_corrcoefs()
         abrseries.filename = fname
@@ -692,8 +740,8 @@ def load_anecs_file(fname, invert=False, filter=False, fdict=None):
         abrseries.time = t
         abrseries.Tmax = max(t) * 1000
         return series
-            
+
     except (AttributeError, ValueError):
         msg = 'Could not parse %s.  Most likely not a valid ANECS data file.' % fname
         raise IOError(msg)
-            
+

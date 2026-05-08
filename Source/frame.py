@@ -32,11 +32,20 @@ def listdir(dir, match, incdirs=False):
 
 def loadmodel(fname, invert, polarity, useNoiseFloor):
     filter = DefaultValueHolder("PhysiologyNotebook", "filter")
-    filter.SetVariables(ftype="butterworth", fl=10000, fh=200, N = 1)
+    filter.SetVariables(ftype="butterworth", fl=10000, fh=200, N=1)
     filter.InitFromConfig()
 
+    timeRangeMin = DefaultValueHolder("PhysiologyNotebook", "timeRangeMin")
+    timeRangeMin.SetVariables(value=float(0))
+    timeRangeMin.InitFromConfig()
+
+    timeRangeMax = DefaultValueHolder("PhysiologyNotebook", "timeRangeMax")
+    timeRangeMax.SetVariables(value=float(0))
+    timeRangeMax.InitFromConfig()
+
     fdict = {'ftype': filter.ftype, 'W': (filter.fh, filter.fl), 'N': filter.N}
-    return peakio.load(fname, invert, fdict, polarity, useNoiseFloor)
+    return peakio.load(fname, invert, fdict, polarity, useNoiseFloor,
+                       t_min=timeRangeMin.value, t_max=timeRangeMax.value)
 
 #----------------------------------------------------------------------------
 
@@ -473,6 +482,14 @@ class PhysiologyOptions(wx.Dialog):
         self.autoRestore.SetVariables(value=True)
         self.autoRestore.InitFromConfig()
 
+        self.timeRangeMin = DefaultValueHolder('PhysiologyNotebook', 'timeRangeMin')
+        self.timeRangeMin.SetVariables(value=float(0))
+        self.timeRangeMin.InitFromConfig()
+
+        self.timeRangeMax = DefaultValueHolder('PhysiologyNotebook', 'timeRangeMax')
+        self.timeRangeMax.SetVariables(value=float(0))
+        self.timeRangeMax.InitFromConfig()
+
         filter = self.filter
         file = self.file
         minlatency = self.minlatency
@@ -496,7 +513,7 @@ class PhysiologyOptions(wx.Dialog):
         dsizer.Add(self.dbb, 0, wx.EXPAND|wx.ALL, 5)
 
         #Filter options
-        fbox = wx.StaticBox(self, wx.ID_ANY, "Filtering Options")
+        fbox = wx.StaticBox(self, wx.ID_ANY, "Filtering")
         fsizer = wx.StaticBoxSizer(fbox, wx.VERTICAL)
         box = wx.BoxSizer(wx.HORIZONTAL)
 
@@ -510,14 +527,14 @@ class PhysiologyOptions(wx.Dialog):
         self.ftype.Bind(wx.EVT_CHOICE, self.ftype_choice)
 
         #Highpass
-        label = wx.StaticText(self, wx.ID_ANY, "Highpass Cutoff (Hz):")
+        label = wx.StaticText(self, wx.ID_ANY, "Highpass cutoff (Hz):")
         box.Add(label, 0, wx.ALL, 5)
         self.fh = wx.TextCtrl(self, wx.ID_ANY, str(filter.fh),
             size=(75,-1), validator=FrequencyValidator())
         box.Add(self.fh, 0, wx.ALL, 5)
 
         #Lowpass
-        label = wx.StaticText(self, wx.ID_ANY, "Lowpass Cutoff (Hz):")
+        label = wx.StaticText(self, wx.ID_ANY, "Lowpass cutoff (Hz):")
         box.Add(label, 0, wx.ALL, 5)
         self.fl = wx.TextCtrl(self, wx.ID_ANY, str(filter.fl),
             size=(75,-1), validator=FrequencyValidator())
@@ -541,8 +558,24 @@ class PhysiologyOptions(wx.Dialog):
         box.Add(self.ford_info, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
         self.ford.Bind(wx.EVT_TEXT, self.OnOrderChanged)
 
+        # Custom Tmin
+        wbox = wx.StaticBox(self, wx.ID_ANY, "Waveform Window")
+        wsizer = wx.StaticBoxSizer(wbox, wx.HORIZONTAL)
+        label = wx.StaticText(self, wx.ID_ANY, "Start (ms):")
+        wsizer.Add(label, 0, wx.ALL, 5)
+        self.tminb = wx.TextCtrl(self, wx.ID_ANY, str(self.timeRangeMin.value),
+                                 size=(75, -1), validator=MinLatencyValidator())
+        wsizer.Add(self.tminb, 0, wx.ALL, 5)
+
+        # Custom Tmax
+        label = wx.StaticText(self, wx.ID_ANY, "End (ms):")
+        wsizer.Add(label, 0, wx.ALL, 5)
+        self.tmaxb = wx.TextCtrl(self, wx.ID_ANY, str(self.timeRangeMax.value),
+                                 size=(75, -1), validator=MinLatencyValidator())
+        wsizer.Add(self.tmaxb, 0, wx.ALL, 5)
+
         #stim polarity
-        pbox = wx.StaticBox(self, wx.ID_ANY, "")
+        pbox = wx.StaticBox(self, wx.ID_ANY, "Analysis")
         psizer = wx.StaticBoxSizer(pbox, wx.HORIZONTAL)
         label = wx.StaticText(self, wx.ID_ANY, "Analyze each stimulus polarity:")
         psizer.Add(label, 0, wx.ALL, 5)
@@ -564,9 +597,9 @@ class PhysiologyOptions(wx.Dialog):
         self.blw = wx.TextCtrl(self, wx.ID_ANY, str(baselinewin.value),
             size=(75,-1), validator=MinLatencyValidator())
         psizer.Add(self.blw, 0, wx.ALL, 5)
-   
+
         # File extension
-        obox = wx.StaticBox(self, wx.ID_ANY, "")
+        obox = wx.StaticBox(self, wx.ID_ANY, "Saving")
         osizer = wx.StaticBoxSizer(obox, wx.HORIZONTAL)
         label = wx.StaticText(self, wx.ID_ANY, "File extension:")
         osizer.Add(label, 0, wx.ALL, 5)
@@ -590,10 +623,11 @@ class PhysiologyOptions(wx.Dialog):
         self.arcb.Bind(wx.EVT_CHOICE, self.OnAutoRestoreCheck)
         osizer.Add(self.arcb, 0, wx.ALL, 5)
 
-        line = wx.StaticLine(self, wx.ID_ANY, size=(20,-1), style=wx.LI_HORIZONTAL)
+        line = wx.StaticLine(self, wx.ID_ANY, size=(25,-1), style=wx.LI_HORIZONTAL)
 
         sizer.Add(dsizer, 0, wx.EXPAND|wx.ALL, 5)
         sizer.Add(fsizer, 0, wx.EXPAND|wx.ALL, 5)
+        sizer.Add(wsizer, 0, wx.EXPAND|wx.ALL, 5)
         sizer.Add(psizer, 0, wx.EXPAND|wx.ALL, 5)
         sizer.Add(osizer, 0, wx.EXPAND|wx.ALL, 5)
         sizer.Add(line, 0, wx.GROW, wx.RIGHT|wx.TOP, 5)
@@ -638,6 +672,10 @@ class PhysiologyOptions(wx.Dialog):
             self.minlatency.UpdateConfig()
             self.baselinewin.SetVariables(value=float(self.blw.GetValue()))
             self.baselinewin.UpdateConfig()
+            self.timeRangeMin.SetVariables(value=float(self.tminb.GetValue()))
+            self.timeRangeMin.UpdateConfig()
+            self.timeRangeMax.SetVariables(value=float(self.tmaxb.GetValue()))
+            self.timeRangeMax.UpdateConfig()
             self.extension.SetVariables(value=self.fileext.GetValue())
             self.extension.UpdateConfig()
             self.useNoiseFloor.SetVariables(value=self.nfcb.GetValue())

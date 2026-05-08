@@ -67,12 +67,13 @@ The save function must return a message.  If there is an error in saving, throw
 the appropriate exception.
 '''
 
-def load(run, invert=False, filter=None, polarity=ABRStimPolarity.Avg, noiseFloor=False):
+def load(run, invert=False, filter=None, polarity=ABRStimPolarity.Avg, noiseFloor=False, t_min=0, t_max=0):
     if filter is None or filter['ftype'] == 'None':
-        return loadabr(run, filter=False, invert=invert, polarity=polarity, noiseFloor=noiseFloor)
+        return loadabr(run, filter=False, invert=invert, polarity=polarity,
+                       noiseFloor=noiseFloor, t_min=t_min, t_max=t_max)
     else:
-        return loadabr(run, filter=True, fdict=filter, invert=invert, polarity=polarity, noiseFloor=noiseFloor)
-
+        return loadabr(run, filter=True, fdict=filter, invert=invert, polarity=polarity,
+                       noiseFloor=noiseFloor, t_min=t_min, t_max=t_max)
 def list(location, skip_processed=False):
     if location is not None and os.path.isdir(location):
         data = os.listdir(location)
