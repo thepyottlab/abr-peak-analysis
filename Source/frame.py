@@ -549,7 +549,7 @@ class PhysiologyOptions(wx.Dialog):
         box.Add(self.ford, 0, wx.ALL, 5)
 
         #Roll-off info
-        self.ford_info = wx.StaticText(self, wx.ID_ANY, self._get_rolloff_label(filter.N))
+        self.ford_info = wx.StaticText(self, wx.ID_ANY, self._get_rolloff_label(filter.N, filter.ftype))
         box.Add(self.ford_info, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
         self.ford.Bind(wx.EVT_TEXT, self.OnOrderChanged)
 
@@ -736,7 +736,8 @@ class PhysiologyOptions(wx.Dialog):
         return not flag    
 
     def ftype_choice(self, evt):
-        if evt.GetString() == 'None':
+        ftype = evt.GetString()
+        if ftype == 'None':
             self.fh.Disable()
             self.fl.Disable()
             self.ford.Disable()
@@ -745,7 +746,11 @@ class PhysiologyOptions(wx.Dialog):
             self.fl.Enable()
             self.ford.Enable()
 
-    def _get_rolloff_label(self, N):
+        self.ford_info.SetLabel(self._get_rolloff_label(self.ford.GetValue(), ftype))
+
+    def _get_rolloff_label(self, N, ftype=None):
+        if ftype == 'None':
+            return "(0 dB/oct effective)"
         try:
             rolloff = int(N) * 12
             return f"({rolloff} dB/oct effective)"
@@ -753,7 +758,8 @@ class PhysiologyOptions(wx.Dialog):
             return ""
 
     def OnOrderChanged(self, evt):
-        self.ford_info.SetLabel(self._get_rolloff_label(self.ford.GetValue()))
+        ftype = self.ftype.GetString(self.ftype.GetSelection())
+        self.ford_info.SetLabel(self._get_rolloff_label(self.ford.GetValue(), ftype))
 
 #----------------------------------------------------------------------------
 
