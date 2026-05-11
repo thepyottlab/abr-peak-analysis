@@ -6,6 +6,7 @@ from __future__ import with_statement
 from datafile import loadabr
 from datatype import Th
 from datatype import Point
+from config import DefaultValueHolder
 import wx
 import re
 import os
@@ -124,17 +125,31 @@ class PointPlot(StylePlot):
         elif self.current and self.parent.current:
             style = dict(PointPlot.TOGGLE)
         elif self.point.point[0] == Point.PEAK:
-            style = dict(PointPlot.PEAK)
-            if self.faded:
-                style['c'] = PointPlot.DARK_COLORS[val-1]
-                style['markerfacecolor'] = PointPlot.DARK_COLORS[val-1]
-            else:    
+            pv = DefaultValueHolder('PhysiologyNotebook', 'peakVisibility')
+            pv.SetVariables(p1=True, p2=True, p3=True, p4=True, p5=True,
+                            n1=True, n2=True, n3=True, n4=True, n5=True)
+            pv.InitFromConfig()
+            if not getattr(pv, 'p%d' % val):
+                style = StylePlot.HIDDEN
+            else:
+                style = dict(PointPlot.PEAK)
+                if self.faded:
+                    style['c'] = PointPlot.DARK_COLORS[val-1]
+                    style['markerfacecolor'] = PointPlot.DARK_COLORS[val-1]
+                else:
+                    style['c'] = PointPlot.COLORS[val-1]
+                    style['markerfacecolor'] = PointPlot.COLORS[val-1]
+        else:
+            pv = DefaultValueHolder('PhysiologyNotebook', 'peakVisibility')
+            pv.SetVariables(p1=True, p2=True, p3=True, p4=True, p5=True,
+                            n1=True, n2=True, n3=True, n4=True, n5=True)
+            pv.InitFromConfig()
+            if not getattr(pv, 'n%d' % val):
+                style = StylePlot.HIDDEN
+            else:
+                style = dict(PointPlot.VALLEY)
                 style['c'] = PointPlot.COLORS[val-1]
                 style['markerfacecolor'] = PointPlot.COLORS[val-1]
-        else:
-            style = dict(PointPlot.VALLEY)
-            style['c'] = PointPlot.COLORS[val-1]
-            style['markerfacecolor'] = PointPlot.COLORS[val-1]
         return style
 
     def _plot(self):

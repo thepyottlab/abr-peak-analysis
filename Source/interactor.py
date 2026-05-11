@@ -1,5 +1,6 @@
 import wx
 from datatype import Point
+from config import DefaultValueHolder
 #import wx.lib.pubsub as pubsub
 
 class KeyInteractor(object):
@@ -51,7 +52,15 @@ class KeyInteractor(object):
                         polarity = Point.VALLEY
                     else:
                         polarity = Point.PEAK
-                    getattr(self, mname)((polarity, int(chr(keycode))))
+                    pv = DefaultValueHolder('PhysiologyNotebook', 'peakVisibility')
+                    pv.SetVariables(p1=True, p2=True, p3=True, p4=True, p5=True,
+                                    n1=True, n2=True, n3=True, n4=True, n5=True)
+                    pv.InitFromConfig()
+                    peak_num = int(chr(keycode))
+                    vis_key = 'p%d' % peak_num if polarity == Point.PEAK else 'n%d' % peak_num
+                    if not getattr(pv, vis_key):
+                        return
+                    getattr(self, mname)((polarity, peak_num))
             else:
                 mname = type + chr(keycode).lower()
                 if hasattr(self, mname):

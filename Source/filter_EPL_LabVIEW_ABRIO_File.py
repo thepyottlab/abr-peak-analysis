@@ -220,7 +220,7 @@ def restore_analysis(model):
             res = p_header.search(data)
             lines = data[res.start():].split('\n');
             
-            pind = numpy.empty(shape=(len(lines)-1, 5), dtype=int)
+            pind = numpy.full((len(lines)-1, 5), -1, dtype=int)
             nind = numpy.full((len(lines) - 1, 5), -1,
                               dtype=int)
             fs = model.series[0].fs / 1000;
@@ -228,7 +228,9 @@ def restore_analysis(model):
             for k in range(n):
                 values = lines[k + 1].split('\t')
                 for j in range(5):
-                    pind[n - k - 1, j] = round(abs(float(values[4 * j + 3])) * fs)
+                    pval = values[4 * j + 3] if len(values) > 4 * j + 3 else ''
+                    if pval.strip():
+                        pind[n - k - 1, j] = round(abs(float(pval)) * fs)
                     val = values[4 * j + 5] if len(values) > 4 * j + 5 else ''
                     if val.strip():
                         nind[n - k - 1, j] = round(abs(float(val)) * fs)
@@ -257,16 +259,29 @@ def construct_fit_message(model):
 
 
 def waveform_string(waveform, cc, baselinewin, noiseFloor=0.0):
+    peakVisibility = DefaultValueHolder('PhysiologyNotebook', 'peakVisibility')
+    peakVisibility.SetVariables(p1=True, p2=True, p3=True, p4=True, p5=True,
+                                n1=True, n2=True, n3=True, n4=True, n5=True)
+    peakVisibility.InitFromConfig()
+
     data = ['%.2f' % waveform.level]
     data.append('%f' % waveform.stat((0, baselinewin), average))
     data.append('%f' % waveform.stat((0, baselinewin), std))
 
     for i in range(1, 6):
-        data.append('%.2f' % waveform.points[(Point.PEAK, i)].latency)
-        data.append('%.2f' % (waveform.points[(Point.PEAK, i)].amplitude - noiseFloor))
+        if getattr(peakVisibility, 'p%d' % i):
+            data.append('%.2f' % waveform.points[(Point.PEAK, i)].latency)
+            data.append('%.2f' % (waveform.points[(Point.PEAK, i)].amplitude - noiseFloor))
+        else:
+            data.append('')
+            data.append('')
         if (Point.VALLEY, i) in waveform.points:
-            data.append('%.2f' % waveform.points[(Point.VALLEY, i)].latency)
-            data.append('%.2f' % waveform.points[(Point.VALLEY, i)].amplitude)
+            if getattr(peakVisibility, 'n%d' % i):
+                data.append('%.2f' % waveform.points[(Point.VALLEY, i)].latency)
+                data.append('%.2f' % waveform.points[(Point.VALLEY, i)].amplitude)
+            else:
+                data.append('')
+                data.append('')
         else:
             data.append('')
             data.append('')
