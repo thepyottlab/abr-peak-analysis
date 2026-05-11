@@ -50,6 +50,19 @@ class WaveformPresenter(object):
         if model is not None:
             self.load(model, options)
 
+    def _store_saved_positions(self):
+        for w in self.model.series:
+            w.saved_points = {k: v.index for k, v in getattr(w, 'points', {}).items()}
+
+    def _store_saved_positions_from_indices(self, indices, point_type):
+        for k in range(len(self.model.series)):
+            w = self.model.series[k]
+            if not hasattr(w, 'saved_points'):
+                w.saved_points = {}
+            for j in range(indices.shape[1]):
+                if indices[k, j] >= 0:
+                    w.saved_points[(point_type, j+1)] = int(indices[k, j])
+
     def load(self, model, options=None):
         self.options = options
         self.model = model
@@ -88,6 +101,10 @@ class WaveformPresenter(object):
     def save(self):
         if self.P:
             msg = peakio.save(self.model)
+            self._store_saved_positions()
+            self._redrawflag = True
+            self._plotupdate = True
+            self.update()
             self.view.GetTopLevelParent().SetStatusText(msg)
         else:
             msg = "Please identify P1-5 before saving"
@@ -119,6 +136,9 @@ class WaveformPresenter(object):
             for j in range(5):
                 if nind[k, j] >= 0:
                     self.setpoint(cur, (Point.VALLEY, j + 1), nind[k, j])
+
+        self._store_saved_positions_from_indices(pind, Point.PEAK)
+        self._store_saved_positions_from_indices(nind, Point.VALLEY)
 
         self.view.GetTopLevelParent().SetStatusText(msg)
 

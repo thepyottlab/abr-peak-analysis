@@ -104,18 +104,21 @@ class PointPlot(StylePlot):
         }
 
     COLORS = [(1,0,0), (1,1,0), (0,1,0), (0,1,1), (0,0,1)]
-    DARK_COLORS = [(.3,0,0), (.3,.3,0), (0,.3,0), (0,.3,.3), (0,0,.3)]
+    DARK_COLORS = [(1,0.6,0.6), (1,1,0.6), (0.6,1,0.6), (0.6,1,1), (0.6,0.6,1)]
 
     def __init__(self, parent, figure, point):
         self.figure = figure
         self.parent = parent
-        self.faded = False
         self.point = point
         self.update()
 
     def remove(self):
         # self.figure.lines.remove(self.plot)
         self.plot.remove()
+
+    def _is_faded(self):
+        saved = getattr(self.parent.waveform, 'saved_points', {})
+        return saved.get(self.point.point, None) != self.point.index
 
     def _getstyle(self):
         val = self.point.point[1]
@@ -133,7 +136,7 @@ class PointPlot(StylePlot):
                 style = StylePlot.HIDDEN
             else:
                 style = dict(PointPlot.PEAK)
-                if self.faded:
+                if self._is_faded():
                     style['c'] = PointPlot.DARK_COLORS[val-1]
                     style['markerfacecolor'] = PointPlot.DARK_COLORS[val-1]
                 else:
@@ -148,8 +151,12 @@ class PointPlot(StylePlot):
                 style = StylePlot.HIDDEN
             else:
                 style = dict(PointPlot.VALLEY)
-                style['c'] = PointPlot.COLORS[val-1]
-                style['markerfacecolor'] = PointPlot.COLORS[val-1]
+                if self._is_faded():
+                    style['c'] = PointPlot.DARK_COLORS[val-1]
+                    style['markerfacecolor'] = PointPlot.DARK_COLORS[val-1]
+                else:
+                    style['c'] = PointPlot.COLORS[val-1]
+                    style['markerfacecolor'] = PointPlot.COLORS[val-1]
         return style
 
     def _plot(self):
