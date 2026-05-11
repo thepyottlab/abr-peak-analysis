@@ -127,6 +127,9 @@ class LazyTree(wx.TreeCtrl):
         if subnodes is None: return
 
         for child in subnodes:
+            display = child.get('display', '')
+            if display.startswith('._'):
+                continue
             child_id = self.AppendItem(parent_id, child['display'])
             if child['has_children']:
                 child['expanded'] = False
