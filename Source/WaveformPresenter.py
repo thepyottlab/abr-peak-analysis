@@ -65,6 +65,8 @@ class WaveformPresenter(object):
         xMax = 8.5
         if self.model.dataType == ABRDataType.Clinical:
             xMax = 25
+        elif self.model.dataType == ABRDataType.CFTS:
+            xMax = self.model.Tmax
         self.view.subplot.axis(xmax=xMax)
         self.current = len(self.model.series)-1
         self.update_labels()
@@ -133,10 +135,10 @@ class WaveformPresenter(object):
             #waveform = self.model.series[-1]
             #ymax = (((waveform.y.max()*self.scale + waveform.level)/5)+1)*5
             #self.view.subplot.axis(ymin=0, ymax=ymax, xmax=8.5)
-            xMax = 8.5
-            if self.model.dataType == ABRDataType.Clinical:
+            if self.model.dataType in (ABRDataType.Clinical, ABRDataType.CFTS):
                 xMax = self.model.Tmax
-#                xMax = 25
+            else:
+                xMax = 8.5
             if self.model.dataType == ABRDataType.CFTS:
                 xMax = self.model.Tmax
                 

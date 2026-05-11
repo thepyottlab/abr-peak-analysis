@@ -54,8 +54,9 @@ def apply_time_range(waveforms, t_min, t_max, fs):
         i_max = int(round(t_max * fs / 1000)) if t_max > 0 else len(w.y)
         w.y = w.y[i_min:i_max]
         w.x = numpy.arange(len(w.y)) * 1000.0 / w.fs
-    new_window = (t_max - t_min) if (t_min > 0 or t_max > 0) else None
+    new_window = len(waveforms[0].y) * 1000.0 / fs if waveforms else None
     return waveforms, new_window
+
 
 def loadabr(fname, invert=False, filter=False, fdict=None, polarity=ABRStimPolarity.Avg, noiseFloor=False, t_min=0, t_max=0):
     f, ext = os.path.splitext(fname)

@@ -118,7 +118,8 @@ class PointPlot(StylePlot):
 
     def _getstyle(self):
         val = self.point.point[1]
-        if self.point.index < 0 or self.parent.waveform.threshold == Th.SUB:
+        if self.point.index < 0 or self.point.index >= len(
+                self.parent.waveform.y) or self.parent.waveform.threshold == Th.SUB:
             style = StylePlot.HIDDEN
         elif self.current and self.parent.current:
             style = dict(PointPlot.TOGGLE)
@@ -137,12 +138,18 @@ class PointPlot(StylePlot):
         return style
 
     def _plot(self):
+        if self.point.index < 0 or self.point.index >= len(self.parent.x):
+            try:
+                self.plot.set_data([], [])
+            except AttributeError:
+                self.plot = self.figure.plot([], [])[0]
+            return
         x = array([self.parent.x[self.point.index]])
         y = array([self.parent.y[self.point.index]])
-        try: 
-            self.plot.set_data(x,y)
-        except AttributeError: 
-            self.plot = self.figure.plot(x,y)[0]
+        try:
+            self.plot.set_data(x, y)
+        except AttributeError:
+            self.plot = self.figure.plot(x, y)[0]
 
 #----------------------------------------------------------------------------
 
