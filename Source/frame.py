@@ -478,6 +478,10 @@ class PhysiologyOptions(wx.Dialog):
         self.useNoiseFloor.SetVariables(value=False)
         self.useNoiseFloor.InitFromConfig()
 
+        self.overwriteOnSave = DefaultValueHolder('PhysiologyNotebook', 'overwriteOnSave')
+        self.overwriteOnSave.SetVariables(value=False)
+        self.overwriteOnSave.InitFromConfig()
+
         self.autoRestore = DefaultValueHolder('PhysiologyNotebook','autoRestore')
         self.autoRestore.SetVariables(value=True)
         self.autoRestore.InitFromConfig()
@@ -615,6 +619,14 @@ class PhysiologyOptions(wx.Dialog):
         self.nfcb.Bind(wx.EVT_CHOICE, self.OnUseNoiseFloorCheck)
         osizer.Add(self.nfcb, 0, wx.ALL, 5)
 
+        # Overwrite on save
+        label = wx.StaticText(self, wx.ID_ANY, "Overwrite on save:")
+        osizer.Add(label, 0, wx.ALL, 5)
+        self.owcb = wx.CheckBox(self, wx.ID_ANY)
+        self.owcb.SetValue(self.overwriteOnSave.value)
+        self.owcb.Bind(wx.EVT_CHOICE, self.OnOverwriteOnSaveCheck)
+        osizer.Add(self.owcb, 0, wx.ALL, 5)
+
         # Auto restore previous analysis
         label = wx.StaticText(self, wx.ID_ANY, "Auto restore analysis:")
         osizer.Add(label, 0, wx.ALL, 5)
@@ -655,6 +667,9 @@ class PhysiologyOptions(wx.Dialog):
     def OnUseNoiseFloorCheck(self, evt):
         self.useNoiseFloor = self.nfcb.GetValue()
 
+    def OnOverwriteOnSaveCheck(self, evt):
+        self.overwriteOnSave = self.owcb.GetValue()
+
     def OnAutoRestoreCheck(self, evt):
         self.useNoiseFloor = self.arcb.GetValue()
 
@@ -680,6 +695,8 @@ class PhysiologyOptions(wx.Dialog):
             self.extension.UpdateConfig()
             self.useNoiseFloor.SetVariables(value=self.nfcb.GetValue())
             self.useNoiseFloor.UpdateConfig()
+            self.overwriteOnSave.SetVariables(value=self.owcb.GetValue())
+            self.overwriteOnSave.UpdateConfig()
             self.autoRestore.SetVariables(value=self.arcb.GetValue())
             self.autoRestore.UpdateConfig()
                         

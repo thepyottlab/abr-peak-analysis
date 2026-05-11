@@ -123,6 +123,10 @@ def save(model):
     extension.SetVariables(value='txt')
     extension.InitFromConfig()
 
+    overwriteOnSave = DefaultValueHolder('PhysiologyNotebook', 'overwriteOnSave')
+    overwriteOnSave.SetVariables(value=False)
+    overwriteOnSave.InitFromConfig()
+
     n = 5
 
     filename = model.filename
@@ -169,11 +173,14 @@ def save(model):
         header = header % (model.threshold, model.freq, model.noiseFloor, fitMsg, filters, mesg, col_labels, spreadsheet)
     else:
         header = header % (model.threshold, model.freq, fitMsg, filters, mesg, col_labels, spreadsheet)
-        
 
-    f = safeopen(filename)
-    f.writelines(header)
-    f.close()
+    if overwriteOnSave.value:
+        with open(filename, 'w') as f:
+            f.write(header)
+    else:
+        f = safeopen(filename)
+        f.writelines(header)
+        f.close()
 
     return 'Saved data to %s' % filename
 
