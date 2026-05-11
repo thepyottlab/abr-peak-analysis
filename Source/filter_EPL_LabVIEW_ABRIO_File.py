@@ -148,11 +148,20 @@ def save(model):
     mesg = 'NOTE: Negative latencies indicate no peak'
     filters = filter_string(model.series[-1])
 
+    peakVisibility = DefaultValueHolder('PhysiologyNotebook', 'peakVisibility')
+    peakVisibility.SetVariables(p1=True, p2=True, p3=True, p4=True, p5=True,
+                                n1=True, n2=True, n3=True, n4=True, n5=True)
+    peakVisibility.InitFromConfig()
+    selected_p = [i for i in range(1, n+1) if getattr(peakVisibility, 'p%d' % i)]
+    selected_n = [i for i in range(1, n+1) if getattr(peakVisibility, 'n%d' % i)]
+
     #Prepare spreadsheet
-    col_label_fmt = 'P%d Latency\tP%d Amplitude\tN%d Latency\tN%d Amplitude\t'
     col_labels = ['Level\t' + str(baselinewin.value) + 'msec Avg\t' + \
                     str(baselinewin.value) + 'msec StDev\t']
-    col_labels.extend([col_label_fmt % (i,i,i,i) for i in range(1,n+1)])
+    for i in selected_p:
+        col_labels.append('P%d Latency\tP%d Amplitude\t' % (i, i))
+    for i in selected_n:
+        col_labels.append('N%d Latency\tN%d Amplitude\t' % (i, i))
     
     corrcoef, level = model.get_corrcoefs()
     
@@ -166,7 +175,8 @@ def save(model):
     
     col_labels = ''.join(col_labels)
     
-    spreadsheet = '\n'.join([waveform_string(w, cc, baselinewin=baselinewin.value, noiseFloor=noiseFloor) for w,cc in \
+    spreadsheet = '\n'.join([waveform_string(w, cc, baselinewin=baselinewin.value, noiseFloor=noiseFloor,
+                                         selected_p=selected_p, selected_n=selected_n) for w,cc in \
        zip(reversed(model.series),corrcoef)])
 
     if model.useNoiseFloor:            
@@ -207,8 +217,10 @@ def restore_analysis(model):
         msg = "Analyzed data not found for '" + model.filename + "'"
         return msg, pind, nind, thr
 
-    p_thr = re.compile('Threshold \(dB SPL\): ([\d.]+)')
-    p_header = re.compile('Level')
+    p_thr = re.compile(r'Threshold \(dB SPL\): ([\d.]+)')
+    p_header = re.compile(r'Level')
+    p_latency = re.compile(r'P(\d+)\s+Latency', re.I)
+    n_latency = re.compile(r'N(\d+)\s+Latency', re.I)
     
     try:
         with open(filename, encoding='latin-1') as f:
@@ -218,22 +230,39 @@ def restore_analysis(model):
             thr = float(res.group(1))
             
             res = p_header.search(data)
-            lines = data[res.start():].split('\n');
+            lines = data[res.start():].split('\n')
             
             pind = numpy.full((len(lines)-1, 5), -1, dtype=int)
             nind = numpy.full((len(lines) - 1, 5), -1,
                               dtype=int)
-            fs = model.series[0].fs / 1000;
+            fs = model.series[0].fs / 1000
             n = len(lines) - 1
+
+            header_cols = lines[0].split('\t')
+            p_map = {}
+            n_map = {}
+            for ci, col in enumerate(header_cols):
+                col = col.strip()
+                pm = p_latency.match(col)
+                if pm:
+                    p_map[int(pm.group(1))] = ci
+                    continue
+                nm = n_latency.match(col)
+                if nm:
+                    n_map[int(nm.group(1))] = ci
+
             for k in range(n):
                 values = lines[k + 1].split('\t')
-                for j in range(5):
-                    pval = values[4 * j + 3] if len(values) > 4 * j + 3 else ''
-                    if pval.strip():
-                        pind[n - k - 1, j] = round(abs(float(pval)) * fs)
-                    val = values[4 * j + 5] if len(values) > 4 * j + 5 else ''
-                    if val.strip():
-                        nind[n - k - 1, j] = round(abs(float(val)) * fs)
+                for peak_num, col_index in p_map.items():
+                    if col_index < len(values):
+                        pval = values[col_index].strip()
+                        if pval:
+                            pind[n - k - 1, peak_num - 1] = round(abs(float(pval)) * fs)
+                for valley_num, col_index in n_map.items():
+                    if col_index < len(values):
+                        val = values[col_index].strip()
+                        if val:
+                            nind[n - k - 1, valley_num - 1] = round(abs(float(val)) * fs)
                 
     except (AttributeError, ValueError):
         msg = 'Could not parse %s' % filename
@@ -258,30 +287,27 @@ def construct_fit_message(model):
     return msg
 
 
-def waveform_string(waveform, cc, baselinewin, noiseFloor=0.0):
-    peakVisibility = DefaultValueHolder('PhysiologyNotebook', 'peakVisibility')
-    peakVisibility.SetVariables(p1=True, p2=True, p3=True, p4=True, p5=True,
-                                n1=True, n2=True, n3=True, n4=True, n5=True)
-    peakVisibility.InitFromConfig()
+def waveform_string(waveform, cc, baselinewin, noiseFloor=0.0, selected_p=None, selected_n=None):
+    if selected_p is None:
+        selected_p = []
+    if selected_n is None:
+        selected_n = []
 
     data = ['%.2f' % waveform.level]
     data.append('%f' % waveform.stat((0, baselinewin), average))
     data.append('%f' % waveform.stat((0, baselinewin), std))
 
-    for i in range(1, 6):
-        if getattr(peakVisibility, 'p%d' % i):
+    for i in selected_p:
+        if (Point.PEAK, i) in waveform.points:
             data.append('%.2f' % waveform.points[(Point.PEAK, i)].latency)
             data.append('%.2f' % (waveform.points[(Point.PEAK, i)].amplitude - noiseFloor))
         else:
             data.append('')
             data.append('')
+    for i in selected_n:
         if (Point.VALLEY, i) in waveform.points:
-            if getattr(peakVisibility, 'n%d' % i):
-                data.append('%.2f' % waveform.points[(Point.VALLEY, i)].latency)
-                data.append('%.2f' % waveform.points[(Point.VALLEY, i)].amplitude)
-            else:
-                data.append('')
-                data.append('')
+            data.append('%.2f' % waveform.points[(Point.VALLEY, i)].latency)
+            data.append('%.2f' % waveform.points[(Point.VALLEY, i)].amplitude)
         else:
             data.append('')
             data.append('')
