@@ -161,7 +161,7 @@ class PhysiologyNotebook(wx.aui.AuiNotebook):
             view = MatplotlibPanel(self, 'Time (msec)', 'Amplitude (uV)', 
                     figsize=(9,8))
 
-            WaveformPresenter(model, view, WaveformInteractor())
+            view.presenter = WaveformPresenter(model, view, WaveformInteractor())
             if model.dataType == ABRDataType.CFTS:
                 name = '%s %.2f kHz' % (os.path.split(fname)[1], model.freq)
             else:
@@ -394,8 +394,12 @@ class PhysiologyFrame(PersistentFrame):
     def OnSetOptions(self, evt):
         dlg = PhysiologyOptions(self, wx.ID_ANY, "Options")
         dlg.CenterOnScreen()
-        dlg.ShowModal()
+        val = dlg.ShowModal()
         dlg.Destroy()
+        if val == wx.ID_OK:
+            for page in self.__nb:
+                if hasattr(page, 'presenter'):
+                    page.presenter._plotupdate = True
 
 #        evt.Skip()
 #
