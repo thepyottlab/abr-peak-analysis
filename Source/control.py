@@ -93,6 +93,8 @@ class LazyTree(wx.TreeCtrl):
             self.SetItemData(item_id, old_ItemData)
 
     def on_expand(self, event):
+        if getattr(self, '_building', False):
+            return
         item_id = event.GetItem()
         if not item_id.IsOk():
             item_id = self.tree.GetSelection()
@@ -108,12 +110,14 @@ class LazyTree(wx.TreeCtrl):
         """ItemData object consists of a nested tuple in the format 
         ((display_string, access_key, sort_key, children), expanded_flag)
         """
-        root_data = {'display': '', 'data': self.root, 'sort_key': (), 
-                'has_children': 1, 'data_string': '', 'expanded': True} 
+        self._building = True
+        root_data = {'display': '', 'data': self.root, 'sort_key': (),
+                     'has_children': 1, 'data_string': '', 'expanded': True}
         self.root_id = self.AddRoot(root_data['display'])
         self.SetItemData(self.root_id, root_data)
         self.extendtree(self.root_id)
         self.SortChildren(self.root_id)
+        self._building = False
 
     def extendtree(self, parent_id):
         wx.Cursor(wx.StockCursor(wx.CURSOR_WAIT))
