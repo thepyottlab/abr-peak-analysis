@@ -282,6 +282,11 @@ class PhysiologyFrame(PersistentFrame):
         convert.Append(ID_CONVERT_IHS, 'Convert &IHS files', 'Convert IHS files')
         menubar.Append(convert, '&Convert')
 
+        tools = wx.Menu()
+        ID_MERGE_ANALYZED = wx.NewId()
+        tools.Append(ID_MERGE_ANALYZED, 'Merge &Export Analyzed Files', 'Merge analyzed file exports to CSV')
+        menubar.Append(tools, '&Tools')
+
         help = wx.Menu()
         ID_DISPLAY_HELP = wx.NewId()
         help.Append(ID_DISPLAY_HELP, '&Help\tCtrl+H', 'Help')
@@ -301,6 +306,7 @@ class PhysiologyFrame(PersistentFrame):
         self.Bind(wx.EVT_MENU, self.OnCloseAllBut, id=ID_CLOSE_ALL_BUT)
         self.Bind(wx.EVT_MENU, self.OnCloseAllTabs, id=ID_CLOSE_ALL_TABS)
         self.Bind(wx.EVT_MENU, self.OnConvertIHS, id=ID_CONVERT_IHS)
+        self.Bind(wx.EVT_MENU, self.OnMergeExportAnalyzedFiles, id=ID_MERGE_ANALYZED)
         self.Bind(wx.EVT_MENU, self.OnDisplayHelp, id=ID_DISPLAY_HELP)
 
         #Initialize manager and panels
@@ -381,6 +387,28 @@ class PhysiologyFrame(PersistentFrame):
                                    wx.OK | wx.ICON_ERROR)
             dlg.ShowModal()
             dlg.Destroy()
+
+    def OnMergeExportAnalyzedFiles(self, evt):
+        import merge_export_saved
+
+        dlg = wx.DirDialog(self, 'Choose a directory containing analyzed files:',
+                defaultPath=self.__filetree.root,
+                style=wx.DD_DIR_MUST_EXIST | wx.DD_CHANGE_DIR)
+        if dlg.ShowModal() == wx.ID_OK:
+            folder = dlg.GetPath()
+            try:
+                output_path, row_count, file_count = merge_export_saved.merge_analyzed_files(folder)
+                self.SetStatusText(f'Merged {file_count} files into {output_path}')
+                wx.MessageBox(
+                    f'Merged {file_count} analyzed files into:\n{output_path}\n\nRows written: {row_count}',
+                    'Merge Complete', wx.OK | wx.ICON_INFORMATION)
+            except Exception as e:
+                self.SetStatusText('Merge analyzed files failed.')
+                errdlg = wx.MessageDialog(self, str(e), 'Merge Error',
+                                          wx.OK | wx.ICON_ERROR)
+                errdlg.ShowModal()
+                errdlg.Destroy()
+        dlg.Destroy()
 
     def OnAbout(self, evt):
         info = wx.adv.AboutDialogInfo()
