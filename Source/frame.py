@@ -220,10 +220,7 @@ class PhysiologyNotebook(wx.aui.AuiNotebook):
 #            w.canvas.Resize()
 
     def OnPageClosed(self, evt):
-        # Is this a Mac thing???
-        if sys.platform == 'darwin':
-            self.RemovePage(evt.GetSelection())
-            self.DeletePage(evt.GetSelection())
+        pass
         
             
 #----------------------------------------------------------------------------
@@ -359,21 +356,15 @@ class PhysiologyFrame(PersistentFrame):
 
     def OnCloseTab(self, evt):
         self.__nb.DeletePage(self.__nb.GetSelection())
-        if sys.platform == 'darwin':
-            self.__nb.RemovePage(self.__nb.GetSelection())
 
     def OnCloseAllBut(self, evt):
         for k in reversed(range(self.__nb.PageCount)):
             if k != self.__nb.GetSelection():
                 self.__nb.DeletePage(k)
-                if sys.platform == 'darwin':
-                    self.__nb.RemovePage(k)
 
     def OnCloseAllTabs(self, evt):
         for k in reversed(range(self.__nb.PageCount)):
             self.__nb.DeletePage(k)
-            if sys.platform == 'darwin':
-                self.__nb.RemovePage(k)
 
     def OnConvertIHS(self, evt):
         import convert_ihs
