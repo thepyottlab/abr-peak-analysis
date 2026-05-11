@@ -7,3 +7,4 @@ __pycache__
 .eggs
 /.spyproject/config/backups
 .idea/
+.vscode/
