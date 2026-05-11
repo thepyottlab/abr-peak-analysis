@@ -95,18 +95,33 @@ class WaveformPresenter(object):
             
     def restore(self):
         msg, pind, nind, thr = peakio.restore_analysis(self.model)
-        
+
         self.model.threshold = thr
+
+        has_missing_peaks = (pind == -1).any()
+        has_stored_valleys = (nind >= 0).any()
+        has_missing_valleys = has_stored_valleys and (nind == -1).any()
+
+        if has_missing_peaks:
+            self.guess_p()
 
         for k in range(pind.shape[0]):
             cur = self.model.series[k]
             for j in range(5):
-                self.setpoint(cur, (Point.PEAK, j + 1), pind[k, j])
+                if pind[k, j] >= 0:
+                    self.setpoint(cur, (Point.PEAK, j + 1), pind[k, j])
+
+        if has_missing_valleys:
+            self.guess_n()
+
+        for k in range(pind.shape[0]):
+            cur = self.model.series[k]
+            for j in range(5):
                 if nind[k, j] >= 0:
                     self.setpoint(cur, (Point.VALLEY, j + 1), nind[k, j])
 
         self.view.GetTopLevelParent().SetStatusText(msg)
-        
+
         self.N = True
         self._plotupdate = True
 
