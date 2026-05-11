@@ -86,24 +86,24 @@ class WaveformPresenter(object):
         self.view.subplot.axis
 
     def save(self):
-        if self.P and self.N:
+        if self.P:
             msg = peakio.save(self.model)
             self.view.GetTopLevelParent().SetStatusText(msg)
-#            pubsub.Publisher().sendMessage("DATA SAVED")
         else:
-            msg = "Please identify N1-5 before saving"
+            msg = "Please identify P1-5 before saving"
             wx.MessageBox(msg, "Error")
             
     def restore(self):
         msg, pind, nind, thr = peakio.restore_analysis(self.model)
         
         self.model.threshold = thr
-        
+
         for k in range(pind.shape[0]):
             cur = self.model.series[k]
             for j in range(5):
-                self.setpoint(cur, (Point.PEAK, j+1), pind[k, j])
-                self.setpoint(cur, (Point.VALLEY, j+1), nind[k, j])
+                self.setpoint(cur, (Point.PEAK, j + 1), pind[k, j])
+                if nind[k, j] >= 0:
+                    self.setpoint(cur, (Point.VALLEY, j + 1), nind[k, j])
 
         self.view.GetTopLevelParent().SetStatusText(msg)
         

@@ -221,14 +221,17 @@ def restore_analysis(model):
             lines = data[res.start():].split('\n');
             
             pind = numpy.empty(shape=(len(lines)-1, 5), dtype=int)
-            nind = numpy.empty(shape=(len(lines)-1, 5), dtype=int)
+            nind = numpy.full((len(lines) - 1, 5), -1,
+                              dtype=int)
             fs = model.series[0].fs / 1000;
             n = len(lines) - 1
             for k in range(n):
-                values = numpy.fromstring(lines[k+1], sep="\t")
+                values = lines[k + 1].split('\t')
                 for j in range(5):
-                    pind[n-k-1, j] = round(abs(values[4*j + 3]) * fs)
-                    nind[n-k-1, j] = round(abs(values[4*j + 5]) * fs)
+                    pind[n - k - 1, j] = round(abs(float(values[4 * j + 3])) * fs)
+                    val = values[4 * j + 5] if len(values) > 4 * j + 5 else ''
+                    if val.strip():
+                        nind[n - k - 1, j] = round(abs(float(val)) * fs)
                 
     except (AttributeError, ValueError):
         msg = 'Could not parse %s' % filename
@@ -252,17 +255,22 @@ def construct_fit_message(model):
     
     return msg
 
-def waveform_string(waveform, cc, baselinewin, noiseFloor = 0.0):
-    data = ['%.2f' % waveform.level]
-    data.append('%f' % waveform.stat((0,baselinewin), average))
-    data.append('%f' % waveform.stat((0,baselinewin), std))
 
-    for i in range(1,6):
-        data.append('%.2f' % waveform.points[(Point.PEAK,i)].latency)
-        data.append('%.2f' % (waveform.points[(Point.PEAK,i)].amplitude - noiseFloor))
-        data.append('%.2f' % waveform.points[(Point.VALLEY,i)].latency)
-        data.append('%.2f' % waveform.points[(Point.VALLEY,i)].amplitude)
-    
+def waveform_string(waveform, cc, baselinewin, noiseFloor=0.0):
+    data = ['%.2f' % waveform.level]
+    data.append('%f' % waveform.stat((0, baselinewin), average))
+    data.append('%f' % waveform.stat((0, baselinewin), std))
+
+    for i in range(1, 6):
+        data.append('%.2f' % waveform.points[(Point.PEAK, i)].latency)
+        data.append('%.2f' % (waveform.points[(Point.PEAK, i)].amplitude - noiseFloor))
+        if (Point.VALLEY, i) in waveform.points:
+            data.append('%.2f' % waveform.points[(Point.VALLEY, i)].latency)
+            data.append('%.2f' % waveform.points[(Point.VALLEY, i)].amplitude)
+        else:
+            data.append('')
+            data.append('')
+
     if not isnan(cc):
         data.append('%.3f' % cc)
 
