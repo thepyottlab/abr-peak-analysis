@@ -138,11 +138,13 @@ def save(model):
     filename = filename + '-analyzed.' + extension.value
 
     noiseFloor = 0
+    threshold = '' if model.threshold is None else '%.2f' % model.threshold
+
     if model.useNoiseFloor:
-        header = 'Threshold (dB SPL): %.2f\nFrequency (kHz): %.2f\nNoise floor (uV): %.4f\n%s\n%s\n%s\n%s\n%s'
+        header = 'Threshold (dB SPL): %s\nFrequency (kHz): %.2f\nNoise floor (uV): %.4f\n%s\n%s\n%s\n%s\n%s'
         noiseFloor = model.noiseFloor
     else:
-        header = 'Threshold (dB SPL): %.2f\nFrequency (kHz): %.2f\n%s\n%s\n%s\n%s\n%s'
+        header = 'Threshold (dB SPL): %s\nFrequency (kHz): %.2f\n%s\n%s\n%s\n%s\n%s'
     
     fitMsg = construct_fit_message(model)
     mesg = 'NOTE: Negative latencies indicate no peak'
@@ -180,9 +182,9 @@ def save(model):
        zip(reversed(model.series),corrcoef)])
 
     if model.useNoiseFloor:            
-        header = header % (model.threshold, model.freq, model.noiseFloor, fitMsg, filters, mesg, col_labels, spreadsheet)
+        header = header % (threshold, model.freq, model.noiseFloor, fitMsg, filters, mesg, col_labels, spreadsheet)
     else:
-        header = header % (model.threshold, model.freq, fitMsg, filters, mesg, col_labels, spreadsheet)
+        header = header % (threshold, model.freq, fitMsg, filters, mesg, col_labels, spreadsheet)
 
     if overwriteOnSave.value:
         with open(filename, 'w') as f:
@@ -217,7 +219,7 @@ def restore_analysis(model):
         msg = "Analyzed data not found for '" + model.filename + "'"
         return msg, pind, nind, thr
 
-    p_thr = re.compile(r'Threshold \(dB SPL\): ([\d.]+)')
+    p_thr = re.compile(r'Threshold \(dB SPL\):\s*([+-]?\d+(?:\.\d+)?)?')
     p_header = re.compile(r'Level')
     p_latency = re.compile(r'P(\d+)\s+Latency', re.I)
     n_latency = re.compile(r'N(\d+)\s+Latency', re.I)
@@ -225,9 +227,11 @@ def restore_analysis(model):
     try:
         with open(filename, encoding='latin-1') as f:
             data = f.read()
+            thr = None
             
             res = p_thr.search(data)
-            thr = float(res.group(1))
+            if res is not None and res.group(1):
+                thr = float(res.group(1))
             
             res = p_header.search(data)
             lines = data[res.start():].split('\n')
@@ -344,4 +348,3 @@ def safeopen(file):
         new_fname = os.path.join(base, filestring+fname)
         os.rename(file, new_fname) 
     return open(file, 'w')
-
