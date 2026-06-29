@@ -279,7 +279,9 @@ class PhysiologyFrame(PersistentFrame):
 
         convert = wx.Menu()
         ID_CONVERT_IHS = wx.NewId()
+        ID_CONVERT_ECLIPSE = wx.NewId()
         convert.Append(ID_CONVERT_IHS, 'Convert &IHS files', 'Convert IHS files')
+        convert.Append(ID_CONVERT_ECLIPSE, 'Convert &Eclipse Files', 'Convert Eclipse Files')
         menubar.Append(convert, '&Convert')
 
         tools = wx.Menu()
@@ -306,6 +308,7 @@ class PhysiologyFrame(PersistentFrame):
         self.Bind(wx.EVT_MENU, self.OnCloseAllBut, id=ID_CLOSE_ALL_BUT)
         self.Bind(wx.EVT_MENU, self.OnCloseAllTabs, id=ID_CLOSE_ALL_TABS)
         self.Bind(wx.EVT_MENU, self.OnConvertIHS, id=ID_CONVERT_IHS)
+        self.Bind(wx.EVT_MENU, self.OnConvertEclipse, id=ID_CONVERT_ECLIPSE)
         self.Bind(wx.EVT_MENU, self.OnMergeExportAnalyzedFiles, id=ID_MERGE_ANALYZED)
         self.Bind(wx.EVT_MENU, self.OnDisplayHelp, id=ID_DISPLAY_HELP)
 
@@ -383,6 +386,22 @@ class PhysiologyFrame(PersistentFrame):
         except Exception as e:
             self.SetStatusText('Could not parse IHS file. '
                                'Most likely not a valid IHS export file.')
+            dlg = wx.MessageDialog(self, str(e), 'Conversion Error',
+                                   wx.OK | wx.ICON_ERROR)
+            dlg.ShowModal()
+            dlg.Destroy()
+
+    def OnConvertEclipse(self, evt):
+        import convert_eclipse
+        self.SetStatusText('Running Eclipse to .tsv converter...')
+        try:
+            convert_eclipse.run()
+            self.OnRefresh()
+            self.SetStatusText('Converted Eclipse files successfully. '
+                               'Please drag and drop files to canvas.')
+        except Exception as e:
+            self.SetStatusText('Could not parse Eclipse file. '
+                               'Most likely not a valid Eclipse export file.')
             dlg = wx.MessageDialog(self, str(e), 'Conversion Error',
                                    wx.OK | wx.ICON_ERROR)
             dlg.ShowModal()

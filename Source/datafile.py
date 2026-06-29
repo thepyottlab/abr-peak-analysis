@@ -71,7 +71,7 @@ def loadabr(fname, invert=False, filter=False, fdict=None, polarity=ABRStimPolar
     p_fs = re.compile('SAMPLE \(.sec\): ([0-9.]+)')
     p_freq = re.compile('FREQ: ([\w.]+)')
     p_wav = re.compile('FREQ: ([\s\w.:\\\\]+).wav')
-    p_varywhich = re.compile(':Vary signal level: (?i)(true|false)')
+    p_varywhich = re.compile(':Vary signal level: (true|false)', re.I)
     p_control = re.compile(':Control:([\-0-9; Inf NaN]+)')
     time_pattern = '([\d]{1,2}/[\d]{1,2}/[\d]{4}[\t\s]' + \
                   '[\d]{1,2}:[\d]{1,2}(:[\d]{1,2})?\s[APM]{2})'
@@ -96,7 +96,7 @@ def loadabr(fname, invert=False, filter=False, fdict=None, polarity=ABRStimPolar
             if data.startswith('[FAST ABR]'):
                 return load_fast_abr_data(fname, invert, filter, fdict, t_min=t_min, t_max=t_max)
 
-            if data.startswith('[IHS ABR]'):
+            if data.startswith('[IHS ABR]') or data.startswith('[Eclipse ABR]'):
                 return load_ihs_abr_data(fname, invert, filter, fdict, t_min=t_min, t_max=t_max)
 
             if data.startswith('[CUSTOM ABR]'):
@@ -384,7 +384,7 @@ def load_ihs_abr_data(fname, invert=False, filter=False, fdict=None, polarity=AB
     p_level = re.compile('Levels=([\-0-9.; Inf]+)')
     p_fs = re.compile('Response.Fs \(Hz\)=([0-9.]+)')
     p_win = re.compile('Response.Window \(ms\)=([0-9.]+)')
-    p_freq = re.compile('Frequency \(kHz\)=([0-9.]+)')
+    p_freq = re.compile('Frequency \(kHz\)=([^\n]+)')
     p_time = re.compile('Date=([\w\d/\s:]+)\n')
 
     try:
@@ -428,7 +428,8 @@ def load_ihs_abr_data(fname, invert=False, filter=False, fdict=None, polarity=AB
             if filter:
                 waveforms = [w.filtered(**fdict) for w in waveforms]
 
-            freq = float(p_freq.search(header).group(1))
+            freqStr = p_freq.search(header).group(1)
+            freq = 0 if freqStr.lower() == 'click' else float(freqStr)
 
             dataType = ABRDataType.CFTS
             varyMasker = False
