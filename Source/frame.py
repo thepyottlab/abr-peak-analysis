@@ -44,8 +44,10 @@ def loadmodel(fname, invert, polarity, useNoiseFloor):
     timeRangeMax.InitFromConfig()
 
     fdict = {'ftype': filter.ftype, 'W': (filter.fh, filter.fl), 'N': filter.N}
-    return peakio.load(fname, invert, fdict, polarity, useNoiseFloor,
-                       t_min=timeRangeMin.value, t_max=timeRangeMax.value)
+    model = peakio.load(fname, invert, fdict, polarity, useNoiseFloor,
+                        t_min=timeRangeMin.value, t_max=timeRangeMax.value)
+    model.filter_settings = fdict
+    return model
 
 #----------------------------------------------------------------------------
 
@@ -264,8 +266,10 @@ class PhysiologyFrame(PersistentFrame):
         ID_CLOSE_ALL_BUT = wx.NewId()
         ID_CLOSE_ALL_TABS = wx.NewId()
         ID_REFRESH = wx.NewId()
+        ID_SAVE = wx.NewId()
         file.Append(ID_SET_DIR, 'Open &Directory\tCtrl+D', 'Open Directory') 
         file.Append(wx.ID_OPEN, 'Open &File\tCtrl+F', 'Open File')
+        file.Append(ID_SAVE, '&Save\tCtrl+S', 'Save current analysis')
         file.Append(ID_REFRESH, '&Refresh\tCtrl+R', 'Refresh')
         file.AppendSeparator()
         file.Append(ID_SET_OPTIONS, '&Options\tCtrl+O', 'Options')
@@ -301,6 +305,7 @@ class PhysiologyFrame(PersistentFrame):
         self.Bind(wx.EVT_MENU, self.OnSetDir, id=ID_SET_DIR)
         self.Bind(wx.EVT_MENU, self.OnSetOptions, id=ID_SET_OPTIONS)
         self.Bind(wx.EVT_MENU, self.OnOpenFile, id=wx.ID_OPEN)
+        self.Bind(wx.EVT_MENU, self.OnSave, id=ID_SAVE)
         self.Bind(wx.EVT_MENU, self.OnQuit, id=wx.ID_EXIT)
         self.Bind(wx.EVT_MENU, self.OnAbout, id=wx.ID_ABOUT)
         self.Bind(wx.EVT_MENU, self.OnRefresh, id=ID_REFRESH)
@@ -477,9 +482,15 @@ class PhysiologyFrame(PersistentFrame):
 #        evt.Skip()
 
     def OnSave(self, evt):
-        dialog = wx.MessageDialog(None, 'Not implemented yet!!!',
-                'ERROR', wx.YES_NO | wx.NO_DEFAULT | wx.ICON_QUESTION)
-        dialog.Destroy()
+        if self.__nb.GetPageCount() == 0:
+            self.SetStatusText('No active tab to save.')
+            return
+
+        page = self.__nb.GetPage(self.__nb.GetSelection())
+        if hasattr(page, 'presenter') and hasattr(page.presenter, 'save'):
+            page.presenter.save()
+        else:
+            self.SetStatusText('Active tab cannot be saved.')
 #        evt.Skip()
 
 #----------------------------------------------------------------------------

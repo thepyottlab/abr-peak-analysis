@@ -21,7 +21,6 @@ import operator
 
 from config import DefaultValueHolder, expected_peak_count
 import filter_EPL_LabVIEW_ABRIO_File as peakio
-from filter_EPL_LabVIEW_ABRIO_File import safeopen
 #import wx.lib.pubsub as pubsub
 
 from datatype import ThrSource
@@ -487,32 +486,3 @@ class WaveformPresenter(object):
             waveform.points[self.toggle].index = self.iterator.send(step)
             self.plots[self.current].points[self.toggle].update()
             self._redrawflag = True
-
-    def export(self):
-        extension = DefaultValueHolder("PhysiologyNotebook", "extension")
-        extension.SetVariables(value='txt')
-        extension.InitFromConfig()
-
-        #Prepare spreadsheet
-        series = self.model.series
-
-        header = 'Time (ms)\t' + '\t'.join(['{} dB'.format(w.level) for w in series]) + '\n'
-        
-        data = np.array([np.array(w.y) for w in series])
-        data = np.vstack((series[0].x, data))
-        
-        spreadsheet = '\n'.join('\t'.join('%f' %x for x in y) for y in np.transpose(data))
-#        for k = 1 to series.length:
-#            spreadsheet += series[k].y(1) + '\t'
-    
-    
-        filename = self.model.filename + '-filtered.' + extension.value
-
-        f = safeopen(filename)
-        f.writelines(header + spreadsheet)
-        f.close()
-
-        msg = 'Exported filtered waveforms to %s' % filename
-        self.view.GetTopLevelParent().SetStatusText(msg)
-    
-        

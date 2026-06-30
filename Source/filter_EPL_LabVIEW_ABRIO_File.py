@@ -1,13 +1,12 @@
 import re, os
 import numpy
-from numpy import average, std, flip, append, nan, isnan
-from datatype import Point, ThrSource
+import analysis_sqlite
 from walker import ReWalker
 from datafile import loadabr
 from datatype import ABRStimPolarity
 import time
 
-from config import DefaultValueHolder, MAX_PEAKS, expected_peak_count, peak_visibility_defaults
+from config import DefaultValueHolder, expected_peak_count
 
 abr_re = '^ABR-[0-9]+-[0-9]+(\\.dat)?$'
 abr_processed_re = '^ABR-[0-9]+-[0-9]+(\\.dat)?-analyzed.txt$'
@@ -115,17 +114,13 @@ def list(location, skip_processed=False):
     '''
 
 def save(model):
-    baselinewin = DefaultValueHolder('PhysiologyNotebook','baselinewin')
-    baselinewin.SetVariables(value=float(0.3))
-    baselinewin.InitFromConfig()
+    return analysis_sqlite.save(model)
 
+
+def legacy_analysis_path(model):
     extension = DefaultValueHolder("PhysiologyNotebook", "extension")
     extension.SetVariables(value='txt')
     extension.InitFromConfig()
-
-    overwriteOnSave = DefaultValueHolder('PhysiologyNotebook', 'overwriteOnSave')
-    overwriteOnSave.SetVariables(value=False)
-    overwriteOnSave.InitFromConfig()
 
     filename = model.filename
     if model.stimPol == ABRStimPolarity.Condensation:
@@ -133,79 +128,21 @@ def save(model):
     if model.stimPol == ABRStimPolarity.Rarefaction:
         filename = filename + '-rare'
 
-    filename = filename + '-analyzed.' + extension.value
+    return filename + '-analyzed.' + extension.value
 
-    noiseFloor = 0
-    threshold = '' if model.threshold is None else '%.2f' % model.threshold
-
-    if model.useNoiseFloor:
-        header = 'Threshold (dB SPL): %s\nFrequency (kHz): %.2f\nNoise floor (uV): %.4f\n%s\n%s\n%s\n%s\n%s'
-        noiseFloor = model.noiseFloor
-    else:
-        header = 'Threshold (dB SPL): %s\nFrequency (kHz): %.2f\n%s\n%s\n%s\n%s\n%s'
-    
-    fitMsg = construct_fit_message(model)
-    mesg = 'NOTE: Negative latencies indicate no peak'
-    filters = filter_string(model.series[-1])
-
-    peakVisibility = DefaultValueHolder('PhysiologyNotebook', 'peakVisibility')
-    peakVisibility.SetVariables(peak_visibility_defaults())
-    peakVisibility.InitFromConfig()
-    selected_p = [i for i in range(1, MAX_PEAKS + 1) if getattr(peakVisibility, 'p%d' % i)]
-    selected_n = [i for i in range(1, MAX_PEAKS + 1) if getattr(peakVisibility, 'n%d' % i)]
-
-    #Prepare spreadsheet
-    col_labels = ['Level\t' + str(baselinewin.value) + 'msec Avg\t' + \
-                    str(baselinewin.value) + 'msec StDev\t']
-    for i in selected_p:
-        col_labels.append('P%d Latency\tP%d Amplitude\t' % (i, i))
-    for i in selected_n:
-        col_labels.append('N%d Latency\tN%d Amplitude\t' % (i, i))
-    
-    corrcoef, level = model.get_corrcoefs()
-    
-    if corrcoef.size > 0:
-        col_labels += 'CorrCoef\t'
-        corrcoef = append(corrcoef, nan)
-        corrcoef = flip(corrcoef)
-    
-    if corrcoef.size == 0:
-        corrcoef = append(corrcoef, nan)
-    
-    col_labels = ''.join(col_labels)
-    
-    spreadsheet = '\n'.join([waveform_string(w, cc, baselinewin=baselinewin.value, noiseFloor=noiseFloor,
-                                         selected_p=selected_p, selected_n=selected_n) for w,cc in \
-       zip(reversed(model.series),corrcoef)])
-
-    if model.useNoiseFloor:            
-        header = header % (threshold, model.freq, model.noiseFloor, fitMsg, filters, mesg, col_labels, spreadsheet)
-    else:
-        header = header % (threshold, model.freq, fitMsg, filters, mesg, col_labels, spreadsheet)
-
-    if overwriteOnSave.value:
-        with open(filename, 'w') as f:
-            f.write(header)
-    else:
-        f = safeopen(filename)
-        f.writelines(header)
-        f.close()
-
-    return 'Saved data to %s' % filename
 
 def have_stored_analysis(model):
-    extension = DefaultValueHolder("PhysiologyNotebook", "extension")
-    extension.SetVariables(value='txt')
-    extension.InitFromConfig()
-    filename = model.filename + '-analyzed.' + extension.value
-    
-    return os.path.isfile(filename)
+    return analysis_sqlite.have_analysis(model) or os.path.isfile(legacy_analysis_path(model))
 
 def restore_analysis(model):
-    extension = DefaultValueHolder("PhysiologyNotebook", "extension")
-    extension.SetVariables(value='txt')
-    extension.InitFromConfig()
-    filename = model.filename + '-analyzed.' + extension.value
+    if analysis_sqlite.have_analysis(model):
+        return analysis_sqlite.restore(model)
+
+    return restore_text_analysis(model)
+
+
+def restore_text_analysis(model):
+    filename = legacy_analysis_path(model)
     
     msg = ""
     pind = []
@@ -275,59 +212,6 @@ def restore_analysis(model):
     
     
     return msg, pind, nind, thr
-
-def construct_fit_message(model):
-    msg = 'Threshold estimation: '
-    
-    if model.thresholdSource is ThrSource.Manual:
-        msg += 'manual'
-        if model.thresholdEstimationFailed:
-            msg += ' (automatic estimation failed)'
-    elif model.best_fit_type != None:
-        msg += 'automatic (' + model.best_fit_type + ', adjR2=%.3f)'
-        msg = msg % (model.best_fit.stats.adj_r2)
-    
-    return msg
-
-
-def waveform_string(waveform, cc, baselinewin, noiseFloor=0.0, selected_p=None, selected_n=None):
-    if selected_p is None:
-        selected_p = []
-    if selected_n is None:
-        selected_n = []
-
-    data = ['%.2f' % waveform.level]
-    data.append('%f' % waveform.stat((0, baselinewin), average))
-    data.append('%f' % waveform.stat((0, baselinewin), std))
-
-    for i in selected_p:
-        if (Point.PEAK, i) in waveform.points:
-            data.append('%.2f' % waveform.points[(Point.PEAK, i)].latency)
-            data.append('%.2f' % (waveform.points[(Point.PEAK, i)].amplitude - noiseFloor))
-        else:
-            data.append('')
-            data.append('')
-    for i in selected_n:
-        if (Point.VALLEY, i) in waveform.points:
-            data.append('%.2f' % waveform.points[(Point.VALLEY, i)].latency)
-            data.append('%.2f' % waveform.points[(Point.VALLEY, i)].amplitude)
-        else:
-            data.append('')
-            data.append('')
-
-    if not isnan(cc):
-        data.append('%.3f' % cc)
-
-    return '\t'.join(data)
-
-def filter_string(waveform):
-    header = 'Filter history (zpk format):'
-    if waveform._zpk is None:
-        return header + ' No filtering'
-    else:
-        templ = 'Pass %d -- z: %r, p: %r, k: %.4f'
-        filt = [templ % (i,z,p,k) for i,(z,p,k) in enumerate(waveform._zpk)]
-        return header + '\n' + '\n'.join(filt)
 
 def safeopen(file):
     '''Checks to see if a file already exists.  If it does, it is archived

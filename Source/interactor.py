@@ -149,9 +149,6 @@ class WaveformInteractor(KeyInteractor):
     def ku_d(self):
         self.presenter.delete()
 
-    def ku_e(self):
-        self.presenter.export()
-
 #----------------------------------------------------------------------------
 
 class AudiogramInteractor(KeyInteractor):
