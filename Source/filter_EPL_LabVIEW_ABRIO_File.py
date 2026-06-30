@@ -76,7 +76,8 @@ def load(run, invert=False, filter=None, polarity=ABRStimPolarity.Avg, noiseFloo
 def list(location, skip_processed=False):
     if location is not None and os.path.isdir(location):
         data = os.listdir(location)
-        data = [f for f in data if 'ch0avg' not in f]
+        data = [f for f in data
+                if 'ch0avg' not in f and not f.lower().endswith('.sqlite')]
         return [{
             'display':  d,
             'data':     d,

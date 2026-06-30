@@ -6,7 +6,7 @@ import time
 import numpy
 
 from config import DefaultValueHolder, expected_peak_count, MAX_PEAKS, peak_visibility_defaults
-from datatype import ABRStimPolarity, Point, ThrSource
+from datatype import ABRStimPolarity, Point, ThrSource, Th
 
 
 SCHEMA_VERSION = 1
@@ -138,8 +138,8 @@ def _create_schema(db):
             wave_label INTEGER NOT NULL,
             point_type TEXT NOT NULL,
             sample_index INTEGER NOT NULL,
-            latency REAL NOT NULL,
-            amplitude REAL NOT NULL,
+            latency REAL,
+            amplitude REAL,
             FOREIGN KEY (level_id) REFERENCES levels(id)
         );
 
@@ -205,14 +205,19 @@ def _save_peaks(db, model, level_ids):
                 continue
             if value.index < 0 or value.index >= len(waveform.y):
                 continue
-            amplitude = value.amplitude - noise_floor if point_type == Point.PEAK else value.amplitude
+            if waveform.threshold == Th.SUB:
+                latency = None
+                amplitude = None
+            else:
+                latency = float(waveform.x[value.index])
+                amplitude = value.amplitude - noise_floor if point_type == Point.PEAK else value.amplitude
             rows.append((
                 level_ids[waveform],
                 int(wave_label),
                 'peak' if point_type == Point.PEAK else 'trough',
                 int(value.index),
-                float(value.latency),
-                float(amplitude),
+                latency,
+                None if amplitude is None else float(amplitude),
             ))
 
     db.executemany('''
