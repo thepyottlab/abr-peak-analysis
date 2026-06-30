@@ -131,9 +131,11 @@ def restore(model):
 
     with sqlite3.connect(path) as db:
         db.row_factory = sqlite3.Row
-        analysis = db.execute(
-            'SELECT threshold FROM analysis WHERE id = 1'
-        ).fetchone()
+        analysis = db.execute('''
+            SELECT threshold, threshold_source, threshold_method
+            FROM analysis
+            WHERE id = 1
+        ''').fetchone()
         if analysis is None:
             raise IOError('Could not parse %s' % path)
 
@@ -161,7 +163,14 @@ def restore(model):
             else:
                 nind[i, j] = int(row['sample_index'])
 
-    return "Loaded data from '%s'" % model.filename, pind, nind, analysis['threshold']
+    return (
+        "Loaded data from '%s'" % model.filename,
+        pind,
+        nind,
+        analysis['threshold'],
+        analysis['threshold_source'],
+        analysis['threshold_method'],
+    )
 
 
 def filter_label(settings):

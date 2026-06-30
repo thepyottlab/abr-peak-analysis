@@ -107,9 +107,12 @@ class WaveformPresenter(object):
             wx.MessageBox(msg, "Error")
             
     def restore(self):
-        msg, pind, nind, thr = peakio.restore_analysis(self.model)
+        restored = peakio.restore_analysis(self.model)
+        msg, pind, nind, thr = restored[:4]
+        source = restored[4] if len(restored) > 4 else ''
+        method = restored[5] if len(restored) > 5 else ''
 
-        self.model.threshold = thr
+        self.model.restore_threshold(thr, source, method)
 
         has_missing_peaks = (pind == -1).any()
         has_stored_valleys = (nind >= 0).any()

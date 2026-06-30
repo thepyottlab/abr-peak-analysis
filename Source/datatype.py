@@ -324,6 +324,20 @@ class abrseries(sortedseries):
     def set_manual_threshold(self, threshold):
         self.set_threshold(threshold)
         self.thresholdSource = ThrSource.Manual
+
+    def restore_threshold(self, threshold, source='', method=''):
+        self.threshold = threshold
+        self._bestFitType = None
+        source = (source or '').lower()
+        method_key = (method or '').lower()
+        if threshold is None:
+            self.thresholdSource = ThrSource.NoThr
+        elif source in ('automatic', 'auto') or (method_key and method_key != 'manual'):
+            self.thresholdSource = ThrSource.Auto
+            if method_key not in ('', 'automatic', 'auto', 'manual'):
+                self._bestFitType = method
+        else:
+            self.thresholdSource = ThrSource.Manual
         
     def compute_corrcoefs(self, tmin=0, tmax=8.5):
         for w,wnext in zip(self.series[0:len(self.series)-1], self.series[1:]):
@@ -443,4 +457,3 @@ class abrseries(sortedseries):
         for w in self.series:
             if w.level == level: return w
         return None
-
