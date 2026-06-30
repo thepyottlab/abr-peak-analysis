@@ -181,10 +181,10 @@ def main(file_path):
     for record in records:
 
         dt = parse_datetime(record.Date_Time)
-        date_str = dt.strftime('%-m/%-d/%Y %I:%M %p')
+        date_str = f"{dt.month}/{dt.day}/{dt.year} {dt.strftime('%I:%M %p')}"        
         time_str = dt.strftime('%I-%M-%S-%p')
         recordname = f"{originalname}_{time_str}_{filename_part(record.Tr_Name)}"
-        print(f"Converting {recordname} to an Eaton-Peabody file")
+        print(f"Converting {recordname} to a .tsv ABR file")
 
         # Sampling rate from sampling period (ms)
         sample_interval = to_numeric(record.Sampl_Interval)  # ms

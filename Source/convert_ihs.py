@@ -208,7 +208,7 @@ def main(file_path):
             dt = datetime.strptime(
                 f'{rec_list[0].Rec_Date} {rec_list[0].Rec_Time}',
                 '%Y-%m-%d %H:%M:%S')
-            date_str = dt.strftime('%-m/%-d/%Y %I:%M %p')
+            date_str = f"{dt.month}/{dt.day}/{dt.year} {dt.strftime('%I:%M %p')}"
 
             # Frequency and waveform type
             if stim_freq == '0':
@@ -221,7 +221,7 @@ def main(file_path):
                 frequency_name    = str(frequency_khz)
 
             recordname = f"{rec_list[0].SystemID} {frequency_name}"
-            print(f"Converting {recordname} to an Eaton-Peabody file")
+            print(f"Converting {recordname} to a .tsv ABR file")
 
             # Sampling rate from sampling period (µs)
             sample_interval = to_numeric(rec_list[0].SamplingRate)  # µs
