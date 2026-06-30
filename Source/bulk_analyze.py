@@ -14,41 +14,7 @@ from analysis_helpers import (
 )
 from config import DefaultValueHolder
 from datatype import ABRDataType, ABRStimPolarity, GetABRDataType
-
-
-SQLITE_PATTERN = '-analyzed.sqlite'
-SOURCE_WILDCARD = (
-    'ABR files|ABR-*-*|VsEP files|VsEP-*-*|ANECS files|*.anx|'
-    'Text files|*.txt|CSV files|*.csv|TSV files|*.tsv'
-)
-
-
-def find_source_files(folder):
-    if not os.path.isdir(folder):
-        raise ValueError(f'Folder does not exist: {folder}')
-
-    paths = []
-    for root, _, files in os.walk(folder):
-        for filename in files:
-            path = os.path.join(root, filename)
-            if is_source_file(path):
-                paths.append(path)
-    return sorted(paths)
-
-
-def is_source_file(path):
-    filename = os.path.basename(path)
-    lower = filename.lower()
-    if filename.startswith('.') or lower.endswith(SQLITE_PATTERN):
-        return False
-    if '-analyzed.' in lower or not os.path.isfile(path):
-        return False
-    _, ext = os.path.splitext(filename)
-    return (
-        filename.startswith('ABR-') or
-        filename.startswith('VsEP-') or
-        ext.lower() in ('.anx', '.txt', '.csv', '.tsv')
-    )
+from source_files import SOURCE_WILDCARD, find_source_files, is_source_file
 
 
 def bulk_analyze_files(paths, thresholds=True, peaks=True, conflict_handler=None):

@@ -6,6 +6,8 @@ try:
 except ImportError:
     wx = None
 
+from source_files import SOURCE_WILDCARD, find_source_files, is_source_file
+
 
 SQLITE_PATTERN = '-analyzed.sqlite'
 
@@ -57,6 +59,46 @@ def export_sqlite_files(paths, output_folder, thresholds=True, peaks=True, wavef
         written['waveforms'] = _write_csv(
             output_folder, 'waveforms.csv', WAVEFORM_FIELDS, rows, identifier)
     return written
+
+
+def export_source_files(paths, output_folder, identifier=''):
+    paths = sorted(set(p for p in paths if is_source_file(p)))
+    if not paths:
+        raise ValueError('No source data files selected.')
+    if not os.path.isdir(output_folder):
+        raise ValueError(f'Output folder does not exist: {output_folder}')
+
+    rows = []
+    for path in paths:
+        rows.extend(source_waveform_rows(path))
+    return {
+        'waveforms': _write_csv(
+            output_folder, 'waveforms.csv', WAVEFORM_FIELDS, rows, identifier)
+    }
+
+
+def source_waveform_rows(path):
+    model = _load_source_model(path)
+    filename = os.path.splitext(os.path.basename(getattr(model, 'filename', path)))[0]
+    rows = []
+    for waveform in model.series:
+        for latency, amplitude in zip(waveform.x, waveform.y):
+            rows.append({
+                'filename': filename,
+                'level': waveform.level,
+                'frequency': model.freq,
+                'filter': 'none',
+                'latency': float(latency),
+                'amplitude': float(amplitude),
+            })
+    return rows
+
+
+def _load_source_model(path):
+    from datafile import loadabr
+    from datatype import ABRStimPolarity
+    return loadabr(path, filter=False, polarity=ABRStimPolarity.Avg,
+                   noiseFloor=False, t_min=0, t_max=0)
 
 
 def threshold_rows(path):
@@ -148,11 +190,19 @@ class ExportDialog(ExportDialogBase):
     def __init__(self, parent, default_folder):
         if wx is None:
             raise RuntimeError('wxPython is required for export.')
-        wx.Dialog.__init__(self, parent, title='Export', size=(700, 500))
+        wx.Dialog.__init__(self, parent, title='Export', size=(700, 540))
         self.paths = []
         self.output_folder = default_folder if os.path.isdir(default_folder) else os.getcwd()
 
         sizer = wx.BoxSizer(wx.VERTICAL)
+
+        self.mode = wx.RadioBox(
+            self, wx.ID_ANY, 'Export Mode',
+            choices=['Analyzed Data', 'Source Data'],
+            majorDimension=2,
+            style=wx.RA_SPECIFY_COLS,
+        )
+        sizer.Add(self.mode, 0, wx.EXPAND | wx.ALL, 5)
 
         options = wx.StaticBoxSizer(wx.StaticBox(self, wx.ID_ANY, 'Datasets'), wx.HORIZONTAL)
         self.thresholds = wx.CheckBox(self, wx.ID_ANY, 'Thresholds')
@@ -200,29 +250,44 @@ class ExportDialog(ExportDialogBase):
         sizer.Add(actions, 0, wx.EXPAND | wx.ALL, 5)
 
         self.SetSizer(sizer)
+        self.mode.Bind(wx.EVT_RADIOBOX, self.on_mode)
         add_folder.Bind(wx.EVT_BUTTON, self.on_add_folder)
         add_files.Bind(wx.EVT_BUTTON, self.on_add_files)
         clear.Bind(wx.EVT_BUTTON, self.on_clear)
         browse.Bind(wx.EVT_BUTTON, self.on_browse_output)
         export.Bind(wx.EVT_BUTTON, self.on_export)
+        self.update_dataset_options()
 
     def on_add_folder(self, evt):
-        dlg = wx.DirDialog(self, 'Choose a folder containing SQLite analysis files:',
+        if self.is_source_mode():
+            message = 'Choose a folder containing source data files:'
+        else:
+            message = 'Choose a folder containing SQLite analysis files:'
+        dlg = wx.DirDialog(self, message,
                            defaultPath=self.output_folder,
                            style=wx.DD_DIR_MUST_EXIST | wx.DD_CHANGE_DIR)
         try:
             if dlg.ShowModal() == wx.ID_OK:
                 folder = dlg.GetPath()
-                self.add_paths(find_analyzed_files(folder))
+                if self.is_source_mode():
+                    self.add_paths(find_source_files(folder))
+                else:
+                    self.add_paths(find_analyzed_files(folder))
                 self.output.SetValue(folder)
         finally:
             dlg.Destroy()
 
     def on_add_files(self, evt):
+        if self.is_source_mode():
+            message = 'Choose source data files:'
+            wildcard = SOURCE_WILDCARD
+        else:
+            message = 'Choose SQLite analysis files:'
+            wildcard = 'SQLite analysis files|*-analyzed.sqlite|SQLite files|*.sqlite'
         dlg = wx.FileDialog(
             self,
-            'Choose SQLite analysis files:',
-            wildcard='SQLite analysis files|*-analyzed.sqlite|SQLite files|*.sqlite',
+            message,
+            wildcard=wildcard,
             style=wx.FD_OPEN | wx.FD_MULTIPLE | wx.FD_FILE_MUST_EXIST,
         )
         try:
@@ -237,6 +302,11 @@ class ExportDialog(ExportDialogBase):
         self.paths = []
         self.refresh_list()
 
+    def on_mode(self, evt):
+        self.paths = []
+        self.refresh_list()
+        self.update_dataset_options()
+
     def on_browse_output(self, evt):
         dlg = wx.DirDialog(self, 'Choose an output folder:',
                            defaultPath=self.output.GetValue(),
@@ -249,14 +319,21 @@ class ExportDialog(ExportDialogBase):
 
     def on_export(self, evt):
         try:
-            written = export_sqlite_files(
-                self.paths,
-                self.output.GetValue(),
-                thresholds=self.thresholds.GetValue(),
-                peaks=self.peaks.GetValue(),
-                waveforms=self.waveforms.GetValue(),
-                identifier=self.identifier.GetValue(),
-            )
+            if self.is_source_mode():
+                written = export_source_files(
+                    self.paths,
+                    self.output.GetValue(),
+                    identifier=self.identifier.GetValue(),
+                )
+            else:
+                written = export_sqlite_files(
+                    self.paths,
+                    self.output.GetValue(),
+                    thresholds=self.thresholds.GetValue(),
+                    peaks=self.peaks.GetValue(),
+                    waveforms=self.waveforms.GetValue(),
+                    identifier=self.identifier.GetValue(),
+                )
         except Exception as e:
             wx.MessageBox(str(e), 'Export Error', wx.OK | wx.ICON_ERROR)
             return
@@ -267,7 +344,11 @@ class ExportDialog(ExportDialogBase):
         self.EndModal(wx.ID_OK)
 
     def add_paths(self, paths):
-        self.paths = sorted(set(self.paths + [p for p in paths if p.lower().endswith('.sqlite')]))
+        if self.is_source_mode():
+            selected = [p for p in paths if is_source_file(p)]
+        else:
+            selected = [p for p in paths if p.lower().endswith('.sqlite')]
+        self.paths = sorted(set(self.paths + selected))
         self.refresh_list()
 
     def refresh_list(self):
@@ -275,6 +356,19 @@ class ExportDialog(ExportDialogBase):
         for path in self.paths:
             idx = self.list.InsertItem(self.list.GetItemCount(), os.path.basename(path))
             self.list.SetItem(idx, 1, os.path.dirname(path))
+
+    def is_source_mode(self):
+        return self.mode.GetSelection() == 1
+
+    def update_dataset_options(self):
+        source = self.is_source_mode()
+        self.thresholds.Show(not source)
+        self.peaks.Show(not source)
+        self.thresholds.SetValue(not source)
+        self.peaks.SetValue(not source)
+        self.waveforms.SetValue(True)
+        self.waveforms.Enable(not source)
+        self.Layout()
 
 
 def export_with_dialog(parent=None, default_folder='.'):

@@ -11,6 +11,7 @@ from AudiogramPresenter import AudiogramPresenter
 from WaveformPresenter import WaveformPresenter
 from interactor import KeyInteractor, WaveformInteractor, AudiogramInteractor
 from analysis_helpers import load_model
+from source_files import SOURCE_WILDCARD, is_source_file
 
 from config import DefaultValueHolder, MAX_PEAKS, expected_peak_count, peak_visibility_defaults
 import filter_EPL_LabVIEW_ABRIO_File as peakio
@@ -452,11 +453,14 @@ class PhysiologyFrame(PersistentFrame):
 #        evt.Skip()
 
     def OnOpenFile(self, evt):
-        wildcard = 'ABR files|ABR-*-*|VsEP files|VsEP-*-*|ANECS files|*.anx|Text files|*.txt'
-        dlg = wx.FileDialog(self, "Choose a file:", wildcard=wildcard,
-                style=wx.FD_OPEN | wx.FD_MULTIPLE | wx.FD_CHANGE_DIR)
+        dlg = wx.FileDialog(self, "Choose a file:", wildcard=SOURCE_WILDCARD,
+                style=wx.FD_OPEN | wx.FD_MULTIPLE | wx.FD_CHANGE_DIR | wx.FD_FILE_MUST_EXIST)
         if dlg.ShowModal() == wx.ID_OK:
-            self.__nb.loadfiles(dlg.GetFilenames())
+            paths = [p for p in dlg.GetPaths() if is_source_file(p)]
+            if paths:
+                self.__nb.loadfiles(paths)
+            else:
+                self.SetStatusText('No valid source files selected.')
         dlg.Destroy()    
 #        evt.Skip()
 
