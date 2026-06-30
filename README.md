@@ -6,14 +6,17 @@ This is the EPL-maintained version of the program originally written by Brad Bur
 
 [Changelog](CHANGELOG.md)
 
-Minimal Python environment:
-```
-conda create -n abr python=3.9.12
+Runtime environment:
+```bash
+conda create -n abr python=3.9.12 pip
 conda activate abr
-conda install -c conda-forge nomkl numpy scipy matplotlib wxPython
-conda install -c conda-forge numpy==2.0.2
-conda install spyder
-conda install pyinstaller
+python -m pip install -r requirements.txt
+python Source/notebook.py
+```
+
+Developer build tool:
+```bash
+python -m pip install pyinstaller
 ```
 
 Notes: numpy v2.0.1 has bugs that break bundled apps without a console, e.g.:

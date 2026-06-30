@@ -1,0 +1,5 @@
+numpy==2.0.2
+scipy
+matplotlib
+wxPython
+-e ./Source/kpy
