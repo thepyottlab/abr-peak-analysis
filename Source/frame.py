@@ -10,6 +10,7 @@ from control import MatplotlibPanel, LazyTree, MPLAudiogram
 from AudiogramPresenter import AudiogramPresenter
 from WaveformPresenter import WaveformPresenter
 from interactor import KeyInteractor, WaveformInteractor, AudiogramInteractor
+from analysis_helpers import load_model
 
 from config import DefaultValueHolder, MAX_PEAKS, expected_peak_count, peak_visibility_defaults
 import filter_EPL_LabVIEW_ABRIO_File as peakio
@@ -31,23 +32,7 @@ def listdir(dir, match, incdirs=False):
 #----------------------------------------------------------------------------
 
 def loadmodel(fname, invert, polarity, useNoiseFloor):
-    filter = DefaultValueHolder("PhysiologyNotebook", "filter")
-    filter.SetVariables(ftype="butterworth", fl=10000, fh=200, N=1)
-    filter.InitFromConfig()
-
-    timeRangeMin = DefaultValueHolder("PhysiologyNotebook", "timeRangeMin")
-    timeRangeMin.SetVariables(value=float(0))
-    timeRangeMin.InitFromConfig()
-
-    timeRangeMax = DefaultValueHolder("PhysiologyNotebook", "timeRangeMax")
-    timeRangeMax.SetVariables(value=float(0))
-    timeRangeMax.InitFromConfig()
-
-    fdict = {'ftype': filter.ftype, 'W': (filter.fh, filter.fl), 'N': filter.N}
-    model = peakio.load(fname, invert, fdict, polarity, useNoiseFloor,
-                        t_min=timeRangeMin.value, t_max=timeRangeMax.value)
-    model.filter_settings = fdict
-    return model
+    return load_model(fname, invert, polarity, useNoiseFloor)
 
 #----------------------------------------------------------------------------
 
@@ -290,6 +275,8 @@ class PhysiologyFrame(PersistentFrame):
 
         tools = wx.Menu()
         ID_EXPORT = wx.NewId()
+        ID_BULK_ANALYZE = wx.NewId()
+        tools.Append(ID_BULK_ANALYZE, '&Bulk Analyze/Filter', 'Analyze and filter files in bulk')
         tools.Append(ID_EXPORT, '&Export', 'Export analyzed SQLite files to CSV')
         menubar.Append(tools, '&Tools')
 
@@ -314,6 +301,7 @@ class PhysiologyFrame(PersistentFrame):
         self.Bind(wx.EVT_MENU, self.OnCloseAllTabs, id=ID_CLOSE_ALL_TABS)
         self.Bind(wx.EVT_MENU, self.OnConvertIHS, id=ID_CONVERT_IHS)
         self.Bind(wx.EVT_MENU, self.OnConvertEclipse, id=ID_CONVERT_ECLIPSE)
+        self.Bind(wx.EVT_MENU, self.OnBulkAnalyze, id=ID_BULK_ANALYZE)
         self.Bind(wx.EVT_MENU, self.OnExport, id=ID_EXPORT)
         self.Bind(wx.EVT_MENU, self.OnDisplayHelp, id=ID_DISPLAY_HELP)
 
@@ -417,6 +405,13 @@ class PhysiologyFrame(PersistentFrame):
 
         if merge_export_saved.export_with_dialog(self, self.__filetree.root):
             self.SetStatusText('Export complete.')
+
+    def OnBulkAnalyze(self, evt):
+        import bulk_analyze
+
+        if bulk_analyze.analyze_with_dialog(self, self.__filetree.root):
+            self.OnRefresh()
+            self.SetStatusText('Bulk analyze/filter complete.')
 
     def OnAbout(self, evt):
         info = wx.adv.AboutDialogInfo()

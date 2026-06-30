@@ -12,14 +12,11 @@ from abrpanel import PointPlot
 from peakdetect import find_np
 from peakdetect import manual_np
 from datatype import Point
-from datatype import waveformpoint
 from datatype import ABRDataType
-from numpy import concatenate
-from numpy import array
 import numpy as np
-import operator
 
 from config import DefaultValueHolder, expected_peak_count
+from analysis_helpers import getindices, guess_peaks, guess_troughs, setpoint
 import filter_EPL_LabVIEW_ABRIO_File as peakio
 #import wx.lib.pubsub as pubsub
 
@@ -302,28 +299,8 @@ class WaveformPresenter(object):
     toggle = property(get_toggle, set_toggle, None, None)
 
     def guess_p(self, start=None):
-        minlatency = DefaultValueHolder('PhysiologyNotebook','minlatency')
-        minlatency.SetVariables(value=float(1.0))
-        minlatency.InitFromConfig()
-
         self.P = True
-        if start is None:
-            start = len(self.model.series)
-        peak_count = expected_peak_count()
-            
-        for i in reversed(range(start)):
-            cur = self.model.series[i]
-            if i == len(self.model.series)-1:
-                p_indices = find_np(cur.fs, cur.y, min_latency=minlatency.value, n=peak_count)
-            else:
-                prev = self.model.series[i+1]
-                i_peaks = self.getindices(prev, Point.PEAK)
-                a_peaks = prev.y[i_peaks]
-                p_indices = find_np(cur.fs, cur.y, algorithm='seed',
-                        seeds=list(zip(i_peaks, a_peaks)), nzc='noise_filtered', n=peak_count)
-
-            for i,v in enumerate(p_indices):
-                self.setpoint(cur, (Point.PEAK, i+1), v)
+        guess_peaks(self.model, start)
 
     def update_point(self):
         for i in reversed(range(self.current)):
@@ -341,24 +318,7 @@ class WaveformPresenter(object):
 
     def guess_n(self, start=None):
         self.N = True
-        if start is None:
-            start = len(self.model.series)
-        for i in reversed(range(start)):
-            cur = self.model.series[i]
-            p_indices = self.getindices(cur, Point.PEAK)
-            bounds = concatenate((p_indices, array([len(cur.y)-1])))
-            try:
-                prev = self.model.series[i+1]
-                i_valleys = self.getindices(prev, Point.VALLEY)
-                a_valleys = prev.y[i_valleys]
-                n_indices = find_np(cur.fs, -cur.y, algorithm='bound',
-                        seeds=list(zip(i_valleys, a_valleys)), bounds=bounds,
-                        bounded_algorithm='seed', dev=0.5, n=len(p_indices))
-            except IndexError as e:
-                n_indices = find_np(cur.fs, -cur.y, bounds=bounds,
-                        algorithm='bound', bounded_algorithm='y_fun', dev=0.5, n=len(p_indices))
-            for i,v in enumerate(n_indices):
-                self.setpoint(cur, (Point.VALLEY, i+1), v)
+        guess_troughs(self.model, start)
         self._plotupdate = True
 
     def invert(self):
@@ -433,19 +393,11 @@ class WaveformPresenter(object):
 
         
     def setpoint(self, waveform, point, index):
-        if not hasattr(waveform, 'points'):
-            setattr(waveform, 'points', {})
-        try:
-            waveform.points[point].index = index
-        except KeyError:
-            waveform.points[point] = waveformpoint(waveform, index, point)
+        setpoint(waveform, point, index)
         self._redrawflag = True
 
     def getindices(self, waveform, point):
-        points = [(v.point[1], v.index) for v in \
-                waveform.points.values() if v.point[0] == point]
-        points.sort(key=operator.itemgetter(0))
-        return [p for i,p in points]
+        return getindices(waveform, point)
 
     def get_iterator(self):
         try:
