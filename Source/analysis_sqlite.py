@@ -6,6 +6,7 @@ import time
 import numpy
 
 from config import DefaultValueHolder, expected_peak_count, MAX_PEAKS, peak_visibility_defaults
+from contextlib import closing
 from datatype import ABRStimPolarity, Point, ThrSource, Th
 
 
@@ -28,7 +29,10 @@ def have_analysis(model):
 def save(model):
     path = analysis_path(model)
 
-    overwrite = DefaultValueHolder('PhysiologyNotebook', 'overwriteOnSave')
+    overwrite = DefaultValueHolder(
+        'PhysiologyNotebook',
+        'overwriteOnSave'
+    )
     overwrite.SetVariables(value=False)
     overwrite.InitFromConfig()
 
@@ -36,13 +40,15 @@ def save(model):
     if os.path.exists(tmp_path):
         os.unlink(tmp_path)
 
-    with sqlite3.connect(tmp_path) as db:
-        db.execute('PRAGMA foreign_keys = ON')
-        _create_schema(db)
-        _save_model(db, model)
+    with closing(sqlite3.connect(tmp_path)) as db:
+        with db:
+            db.execute('PRAGMA foreign_keys = ON')
+            _create_schema(db)
+            _save_model(db, model)
 
     if os.path.exists(path) and not overwrite.value:
         _archive_existing(path)
+
     os.replace(tmp_path, path)
     return 'Saved data to %s' % path
 
@@ -62,12 +68,18 @@ def save_selected(model, thresholds=False, peaks=False, waveforms=True):
     if os.path.exists(tmp_path):
         os.unlink(tmp_path)
 
-    with sqlite3.connect(tmp_path) as db:
-        db.execute('PRAGMA foreign_keys = ON')
-        _create_schema(db)
-        _save_model(db, model, save_peaks=peaks, save_waveforms=waveforms,
-                    threshold_record=preserved_threshold,
-                    preserved_peaks=preserved_peaks)
+    with closing(sqlite3.connect(tmp_path)) as db:
+        with db:
+            db.execute('PRAGMA foreign_keys = ON')
+            _create_schema(db)
+            _save_model(
+                db,
+                model,
+                save_peaks=peaks,
+                save_waveforms=waveforms,
+                threshold_record=preserved_threshold,
+                preserved_peaks=preserved_peaks,
+            )
 
     os.replace(tmp_path, path)
     return 'Saved data to %s' % path
