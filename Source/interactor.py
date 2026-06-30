@@ -1,6 +1,6 @@
 import wx
 from datatype import Point
-from config import DefaultValueHolder
+from config import DefaultValueHolder, MAX_PEAKS, peak_visibility_defaults
 #import wx.lib.pubsub as pubsub
 
 class KeyInteractor(object):
@@ -44,7 +44,7 @@ class KeyInteractor(object):
             if hasattr(self, mname):
                 getattr(self, mname)(evt)
         elif keycode < 256:
-            if chr(keycode) in ['1', '2', '3', '4', '5']:
+            if chr(keycode) in [str(i) for i in range(1, MAX_PEAKS + 1)]:
                 keychar = chr(keycode)
                 mname = type + 'number'
                 if hasattr(self, mname):
@@ -53,8 +53,7 @@ class KeyInteractor(object):
                     else:
                         polarity = Point.PEAK
                     pv = DefaultValueHolder('PhysiologyNotebook', 'peakVisibility')
-                    pv.SetVariables(p1=True, p2=True, p3=True, p4=True, p5=True,
-                                    n1=True, n2=True, n3=True, n4=True, n5=True)
+                    pv.SetVariables(peak_visibility_defaults())
                     pv.InitFromConfig()
                     peak_num = int(chr(keycode))
                     vis_key = 'p%d' % peak_num if polarity == Point.PEAK else 'n%d' % peak_num
@@ -159,4 +158,3 @@ class AudiogramInteractor(KeyInteractor):
 
     def ku_s(self):
         self.presenter.save()
-

@@ -11,8 +11,8 @@ def nzc_temporal_filtered(fs, waveform, min_spacing=0.3, **kwargs):
             min_spacing*1e-3*fs)
     return np.asarray(nzc_indices[p_indices])
 
-def nzc_noise_filtered(fs, waveform, min_noise=None, dev=1.0, min_spacing=0.3,
-        **kwargs): 
+def nzc_noise_filtered(fs, waveform, min_noise=None, dev=1.0, min_spacing=0.3, n=5,
+        **kwargs):
 
     if min_noise is None: min_noise = waveform[:int(1e-3*fs)].std()*dev
 
@@ -36,7 +36,7 @@ def nzc_noise_filtered(fs, waveform, min_noise=None, dev=1.0, min_spacing=0.3,
     ind = np.asarray(ind)
 
     #If too agressive, comment out the following two lines
-    if len(ind) > 5:
+    if len(ind) > n:
         f_ind = cluster(ind, waveform[ind], min_spacing*1e-3*fs) 
         ind = ind[f_ind]
     return np.asarray(ind)
@@ -76,11 +76,11 @@ def seed_rank(s, indices, amplitudes, weighting=3, lb=25, ub=50):
 
 def find_np(fs, waveform, nzc='noise_filtered', algorithm='basic', n=5,
         **kwargs): 
-    nzcs = globals()['nzc_' + nzc](fs, waveform, **kwargs)
+    nzcs = globals()['nzc_' + nzc](fs, waveform, n=n, **kwargs)
     indices = []
-    for n in range(5):
+    for i in range(n):
         try:
-            p = globals()['np_' + algorithm](fs, waveform, nzcs, n, **kwargs)
+            p = globals()['np_' + algorithm](fs, waveform, nzcs, i, **kwargs)
             indices.append(p)
         except IndexError:
             indices.append(len(waveform)-1)

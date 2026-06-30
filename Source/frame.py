@@ -11,7 +11,7 @@ from AudiogramPresenter import AudiogramPresenter
 from WaveformPresenter import WaveformPresenter
 from interactor import KeyInteractor, WaveformInteractor, AudiogramInteractor
 
-from config import DefaultValueHolder
+from config import DefaultValueHolder, MAX_PEAKS, expected_peak_count, peak_visibility_defaults
 import filter_EPL_LabVIEW_ABRIO_File as peakio
 from datatype import GetABRDataType, ABRDataType, ABRStimPolarity
 from datafile import get_expt_id, get_stim_freq
@@ -536,9 +536,12 @@ class PhysiologyOptions(wx.Dialog):
         self.timeRangeMax.SetVariables(value=float(0))
         self.timeRangeMax.InitFromConfig()
 
+        self.expectedPeaks = DefaultValueHolder('PhysiologyNotebook', 'expectedPeaks')
+        self.expectedPeaks.SetVariables(value=5)
+        self.expectedPeaks.InitFromConfig()
+
         self.peakVisibility = DefaultValueHolder('PhysiologyNotebook', 'peakVisibility')
-        self.peakVisibility.SetVariables(p1=True, p2=True, p3=True, p4=True, p5=True,
-                                         n1=True, n2=True, n3=True, n4=True, n5=True)
+        self.peakVisibility.SetVariables(peak_visibility_defaults())
         self.peakVisibility.InitFromConfig()
 
         filter = self.filter
@@ -686,11 +689,20 @@ class PhysiologyOptions(wx.Dialog):
         vbox = wx.StaticBox(self, wx.ID_ANY, "Peak Display")
         vsizer = wx.StaticBoxSizer(vbox, wx.VERTICAL)
 
+        expected_row = wx.BoxSizer(wx.HORIZONTAL)
+        label = wx.StaticText(self, wx.ID_ANY, "Expected number of peaks:")
+        expected_row.Add(label, 0, wx.ALL, 5)
+        self.expectedPeakChoice = wx.Choice(self, wx.ID_ANY,
+                                            choices=[str(i) for i in range(1, MAX_PEAKS + 1)])
+        self.expectedPeakChoice.SetSelection(expected_peak_count() - 1)
+        expected_row.Add(self.expectedPeakChoice, 0, wx.ALL, 5)
+        vsizer.Add(expected_row, 0, wx.ALL, 5)
+
         peak_row = wx.BoxSizer(wx.HORIZONTAL)
         label = wx.StaticText(self, wx.ID_ANY, "Show peaks:")
         peak_row.Add(label, 0, wx.ALL, 5)
         self.pcbs = []
-        for k, roman in enumerate(['I', 'II', 'III', 'IV', 'V']):
+        for k, roman in enumerate(['I', 'II', 'III', 'IV', 'V', 'VI']):
             cb = wx.CheckBox(self, wx.ID_ANY, roman)
             cb.SetValue(getattr(self.peakVisibility, 'p%d' % (k + 1)))
             peak_row.Add(cb, 0, wx.ALL, 5)
@@ -701,7 +713,7 @@ class PhysiologyOptions(wx.Dialog):
         label = wx.StaticText(self, wx.ID_ANY, "Show valleys:")
         valley_row.Add(label, 0, wx.ALL, 5)
         self.ncbs = []
-        for k, roman in enumerate(['I', 'II', 'III', 'IV', 'V']):
+        for k, roman in enumerate(['I', 'II', 'III', 'IV', 'V', 'VI']):
             cb = wx.CheckBox(self, wx.ID_ANY, roman)
             cb.SetValue(getattr(self.peakVisibility, 'n%d' % (k + 1)))
             valley_row.Add(cb, 0, wx.ALL, 5)
@@ -773,14 +785,13 @@ class PhysiologyOptions(wx.Dialog):
             self.overwriteOnSave.UpdateConfig()
             self.autoRestore.SetVariables(value=self.arcb.GetValue())
             self.autoRestore.UpdateConfig()
-            self.peakVisibility.SetVariables(
-                p1=self.pcbs[0].GetValue(), p2=self.pcbs[1].GetValue(),
-                p3=self.pcbs[2].GetValue(), p4=self.pcbs[3].GetValue(),
-                p5=self.pcbs[4].GetValue(),
-                n1=self.ncbs[0].GetValue(), n2=self.ncbs[1].GetValue(),
-                n3=self.ncbs[2].GetValue(), n4=self.ncbs[3].GetValue(),
-                n5=self.ncbs[4].GetValue()
-            )
+            self.expectedPeaks.SetVariables(value=int(self.expectedPeakChoice.GetStringSelection()))
+            self.expectedPeaks.UpdateConfig()
+            self.peakVisibility.SetVariables({
+                '%s%d' % (prefix, i + 1): cb.GetValue()
+                for prefix, cbs in (('p', self.pcbs), ('n', self.ncbs))
+                for i, cb in enumerate(cbs)
+            })
             self.peakVisibility.UpdateConfig()
 
 
@@ -1027,4 +1038,3 @@ class AutomaticFrame(PersistentFrame):
         if self.current > 0:
             self.current -= 2
             self.next()
-

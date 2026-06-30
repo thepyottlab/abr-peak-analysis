@@ -38,7 +38,7 @@ The ABRWaveform class contains the following attributes:
   2. zpk: a list containing the history of filtering for the waveform,
   stored as zpk format.  [0] is the earliest filtering, [-1] is the most
   recent.  
-  3. points: a dictionary containing the points P1-5 and N1-5.  Each point
+  3. points: a dictionary containing the points P1-6 and N1-6.  Each point
   is an object with amplitude and latency attributes.
 
 The save function must return a message.  If there is an error in saving,

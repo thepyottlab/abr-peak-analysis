@@ -19,7 +19,7 @@ from numpy import array
 import numpy as np
 import operator
 
-from config import DefaultValueHolder
+from config import DefaultValueHolder, expected_peak_count
 import filter_EPL_LabVIEW_ABRIO_File as peakio
 from filter_EPL_LabVIEW_ABRIO_File import safeopen
 #import wx.lib.pubsub as pubsub
@@ -107,7 +107,7 @@ class WaveformPresenter(object):
             self.update()
             self.view.GetTopLevelParent().SetStatusText(msg)
         else:
-            msg = "Please identify P1-5 before saving"
+            msg = "Please identify P1-%d before saving" % expected_peak_count()
             wx.MessageBox(msg, "Error")
             
     def restore(self):
@@ -124,7 +124,7 @@ class WaveformPresenter(object):
 
         for k in range(pind.shape[0]):
             cur = self.model.series[k]
-            for j in range(5):
+            for j in range(pind.shape[1]):
                 if pind[k, j] >= 0:
                     self.setpoint(cur, (Point.PEAK, j + 1), pind[k, j])
 
@@ -133,7 +133,7 @@ class WaveformPresenter(object):
 
         for k in range(pind.shape[0]):
             cur = self.model.series[k]
-            for j in range(5):
+            for j in range(nind.shape[1]):
                 if nind[k, j] >= 0:
                     self.setpoint(cur, (Point.VALLEY, j + 1), nind[k, j])
 
@@ -293,6 +293,7 @@ class WaveformPresenter(object):
 
     def set_toggle(self, value):
         if value == self.toggle: pass
+        elif value not in self.model.series[self.current].points: pass
         else:
             self.iterator = None
             self.plots[self.current].toggle = value
@@ -309,17 +310,18 @@ class WaveformPresenter(object):
         self.P = True
         if start is None:
             start = len(self.model.series)
+        peak_count = expected_peak_count()
             
         for i in reversed(range(start)):
             cur = self.model.series[i]
             if i == len(self.model.series)-1:
-                p_indices = find_np(cur.fs, cur.y, min_latency=minlatency.value)
+                p_indices = find_np(cur.fs, cur.y, min_latency=minlatency.value, n=peak_count)
             else:
                 prev = self.model.series[i+1]
                 i_peaks = self.getindices(prev, Point.PEAK)
                 a_peaks = prev.y[i_peaks]
                 p_indices = find_np(cur.fs, cur.y, algorithm='seed',
-                        seeds=list(zip(i_peaks, a_peaks)), nzc='noise_filtered') 
+                        seeds=list(zip(i_peaks, a_peaks)), nzc='noise_filtered', n=peak_count)
 
             for i,v in enumerate(p_indices):
                 self.setpoint(cur, (Point.PEAK, i+1), v)
@@ -352,10 +354,10 @@ class WaveformPresenter(object):
                 a_valleys = prev.y[i_valleys]
                 n_indices = find_np(cur.fs, -cur.y, algorithm='bound',
                         seeds=list(zip(i_valleys, a_valleys)), bounds=bounds,
-                        bounded_algorithm='seed', dev=0.5) 
+                        bounded_algorithm='seed', dev=0.5, n=len(p_indices))
             except IndexError as e:
                 n_indices = find_np(cur.fs, -cur.y, bounds=bounds,
-                        algorithm='bound', bounded_algorithm='y_fun', dev=0.5)
+                        algorithm='bound', bounded_algorithm='y_fun', dev=0.5, n=len(p_indices))
             for i,v in enumerate(n_indices):
                 self.setpoint(cur, (Point.VALLEY, i+1), v)
         self._plotupdate = True
@@ -405,7 +407,7 @@ class WaveformPresenter(object):
     def plot_io(self):
         ymax = 0
         level = np.array([w.level for w in self.model.series])
-        for k in range(5):
+        for k in range(expected_peak_count()):
             y = np.array([w.points[(Point.PEAK, k+1)].amplitude for w in self.model.series]) 
             ymax = np.max((ymax, y.max()))
             self.view.ioplot.plot(level, y, '-', color=PointPlot.COLORS[k])

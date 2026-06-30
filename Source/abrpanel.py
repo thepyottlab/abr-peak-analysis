@@ -6,7 +6,7 @@ from __future__ import with_statement
 from datafile import loadabr
 from datatype import Th
 from datatype import Point
-from config import DefaultValueHolder
+from config import DefaultValueHolder, peak_visibility_defaults
 import wx
 import re
 import os
@@ -103,8 +103,8 @@ class PointPlot(StylePlot):
             'markeredgecolor':  (0,0,0)
         }
 
-    COLORS = [(1,0,0), (1,1,0), (0,1,0), (0,1,1), (0,0,1)]
-    DARK_COLORS = [(1,0.6,0.6), (1,1,0.6), (0.6,1,0.6), (0.6,1,1), (0.6,0.6,1)]
+    COLORS = [(1,0,0), (1,1,0), (0,1,0), (0,1,1), (0,0,1), (1,0,1)]
+    DARK_COLORS = [(1,0.6,0.6), (1,1,0.6), (0.6,1,0.6), (0.6,1,1), (0.6,0.6,1), (1,0.6,1)]
 
     def __init__(self, parent, figure, point):
         self.figure = figure
@@ -113,7 +113,6 @@ class PointPlot(StylePlot):
         self.update()
 
     def remove(self):
-        # self.figure.lines.remove(self.plot)
         self.plot.remove()
 
     def _is_faded(self):
@@ -129,8 +128,7 @@ class PointPlot(StylePlot):
             style = dict(PointPlot.TOGGLE)
         elif self.point.point[0] == Point.PEAK:
             pv = DefaultValueHolder('PhysiologyNotebook', 'peakVisibility')
-            pv.SetVariables(p1=True, p2=True, p3=True, p4=True, p5=True,
-                            n1=True, n2=True, n3=True, n4=True, n5=True)
+            pv.SetVariables(peak_visibility_defaults())
             pv.InitFromConfig()
             if not getattr(pv, 'p%d' % val):
                 style = StylePlot.HIDDEN
@@ -144,8 +142,7 @@ class PointPlot(StylePlot):
                     style['markerfacecolor'] = PointPlot.COLORS[val-1]
         else:
             pv = DefaultValueHolder('PhysiologyNotebook', 'peakVisibility')
-            pv.SetVariables(p1=True, p2=True, p3=True, p4=True, p5=True,
-                            n1=True, n2=True, n3=True, n4=True, n5=True)
+            pv.SetVariables(peak_visibility_defaults())
             pv.InitFromConfig()
             if not getattr(pv, 'n%d' % val):
                 style = StylePlot.HIDDEN
@@ -219,11 +216,13 @@ class WaveformPlot(StylePlot):
         self._normalized = False
 
     def __del__(self):
-        print('deleting self')
-        self.figure.lines.remove(self.plot)
+        try:
+            self.plot.remove()
+        except (AttributeError, ValueError):
+            pass
         
     def remove(self):
-        self.figure.lines.remove(self.plot)
+        self.plot.remove()
         for v in self.points.values():
             v.remove()
 

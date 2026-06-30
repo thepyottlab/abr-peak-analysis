@@ -7,7 +7,7 @@ from datafile import loadabr
 from datatype import ABRStimPolarity
 import time
 
-from config import DefaultValueHolder
+from config import DefaultValueHolder, MAX_PEAKS, expected_peak_count, peak_visibility_defaults
 
 abr_re = '^ABR-[0-9]+-[0-9]+(\\.dat)?$'
 abr_processed_re = '^ABR-[0-9]+-[0-9]+(\\.dat)?-analyzed.txt$'
@@ -60,7 +60,7 @@ Each waveform of the ABRWaveform class contains the following attributes:
       2. zpk: a list containing the history of filtering for the waveform,
       stored as zpk format.  [0] is the earliest filtering, [-1] is the most
       recent.  
-      3. points: a dictionary containing the points P1-5 and N1-5.  Each point
+      3. points: a dictionary containing the points P1-6 and N1-6.  Each point
       is an object with amplitude and latency attributes.
 
 The save function must return a message.  If there is an error in saving, throw
@@ -127,8 +127,6 @@ def save(model):
     overwriteOnSave.SetVariables(value=False)
     overwriteOnSave.InitFromConfig()
 
-    n = 5
-
     filename = model.filename
     if model.stimPol == ABRStimPolarity.Condensation:
         filename = filename + '-cond'
@@ -151,11 +149,10 @@ def save(model):
     filters = filter_string(model.series[-1])
 
     peakVisibility = DefaultValueHolder('PhysiologyNotebook', 'peakVisibility')
-    peakVisibility.SetVariables(p1=True, p2=True, p3=True, p4=True, p5=True,
-                                n1=True, n2=True, n3=True, n4=True, n5=True)
+    peakVisibility.SetVariables(peak_visibility_defaults())
     peakVisibility.InitFromConfig()
-    selected_p = [i for i in range(1, n+1) if getattr(peakVisibility, 'p%d' % i)]
-    selected_n = [i for i in range(1, n+1) if getattr(peakVisibility, 'n%d' % i)]
+    selected_p = [i for i in range(1, MAX_PEAKS + 1) if getattr(peakVisibility, 'p%d' % i)]
+    selected_n = [i for i in range(1, MAX_PEAKS + 1) if getattr(peakVisibility, 'n%d' % i)]
 
     #Prepare spreadsheet
     col_labels = ['Level\t' + str(baselinewin.value) + 'msec Avg\t' + \
@@ -236,9 +233,6 @@ def restore_analysis(model):
             res = p_header.search(data)
             lines = data[res.start():].split('\n')
             
-            pind = numpy.full((len(lines)-1, 5), -1, dtype=int)
-            nind = numpy.full((len(lines) - 1, 5), -1,
-                              dtype=int)
             fs = model.series[0].fs / 1000
             n = len(lines) - 1
 
@@ -254,6 +248,11 @@ def restore_analysis(model):
                 nm = n_latency.match(col)
                 if nm:
                     n_map[int(nm.group(1))] = ci
+
+            restored_peaks = tuple(p_map) + tuple(n_map)
+            peak_count = max((expected_peak_count(),) + restored_peaks)
+            pind = numpy.full((n, peak_count), -1, dtype=int)
+            nind = numpy.full((n, peak_count), -1, dtype=int)
 
             for k in range(n):
                 values = lines[k + 1].split('\t')

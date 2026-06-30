@@ -94,6 +94,25 @@ class DefaultValueHolder(object):
  
     def WriteConfig(self, name, value, type):
         self.config.set(self.grpName, name, str(value))
+
+MAX_PEAKS = 6
+
+def expected_peak_count():
+    peaks = DefaultValueHolder("PhysiologyNotebook", "expectedPeaks")
+    peaks.SetVariables(value=5)
+    peaks.InitFromConfig()
+    try:
+        value = int(peaks.value)
+    except (TypeError, ValueError):
+        value = 5
+    return max(1, min(MAX_PEAKS, value))
+
+def peak_visibility_defaults():
+    defaults = {}
+    for i in range(1, MAX_PEAKS + 1):
+        defaults['p%d' % i] = True
+        defaults['n%d' % i] = True
+    return defaults
  
 if __name__ == "__main__":
     test = DefaultValueHolder("HETAP Pro 2.00", "Database")
