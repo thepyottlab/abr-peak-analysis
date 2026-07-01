@@ -4,6 +4,7 @@ import wx, wx.aui, wx.adv
 import wx.lib.filebrowsebutton as filebrowse
 #import wx.lib.pubsub as pubsub
 import wx.html
+import wx.grid
 import webbrowser
 
 from control import MatplotlibPanel, LazyTree, MPLAudiogram
@@ -233,18 +234,35 @@ class PhysiologyNbFileDropTarget(wx.FileDropTarget):
 #----------------------------------------------------------------------------
 
 class ConvertFilesDialog(wx.Dialog):
+    TEMPLATE_INITIAL_ROWS = 100
+    TEMPLATE_TRAILING_ROWS = 20
+    TEMPLATE_UNDO_LIMIT_BYTES = 100 * 1024 * 1024
 
     def __init__(self, parent, title, wildcard, default_folder,
                  convert_file, source_name, show_eclipse_options=False,
-                 channel_loader=None):
+                 channel_loader=None, template_reader=None,
+                 template_writer=None, template_fields=None,
+                 timestamp_loader=None, eclipse_id_matcher=None):
         wx.Dialog.__init__(self, parent, title=title,
-                           size=(700, 540 if show_eclipse_options else 420))
+                           size=(820, 720 if show_eclipse_options else 420))
         self.paths = []
         self.default_folder = default_folder if os.path.isdir(default_folder) else os.getcwd()
         self.convert_file = convert_file
         self.source_name = source_name
         self.show_eclipse_options = show_eclipse_options
         self.channel_loader = channel_loader
+        self.template_reader = template_reader
+        self.template_writer = template_writer
+        self.template_fields = template_fields or []
+        self.timestamp_loader = timestamp_loader
+        self.eclipse_id_matcher = eclipse_id_matcher
+        self.channel_choices = []
+        self.timestamps_by_path = {}
+        self.template_undo = []
+        self.template_redo = []
+        self.template_undo_bytes = 0
+        self.template_redo_bytes = 0
+        self.suppress_template_undo = False
         self.converted = False
 
         sizer = wx.BoxSizer(wx.VERTICAL)
@@ -275,25 +293,68 @@ class ConvertFilesDialog(wx.Dialog):
         sizer.Add(self.list, 1, wx.EXPAND | wx.ALL, 5)
 
         if show_eclipse_options:
+            self.channels_panel = wx.Panel(self, wx.ID_ANY)
             channels = wx.StaticBoxSizer(
-                wx.StaticBox(self, wx.ID_ANY, 'Select Channels'), wx.VERTICAL)
+                wx.StaticBox(self.channels_panel, wx.ID_ANY, 'Select Channels'),
+                wx.VERTICAL)
             channel_buttons = wx.BoxSizer(wx.HORIZONTAL)
-            self.channel_all = wx.Button(self, wx.ID_ANY, 'All')
-            self.channel_none = wx.Button(self, wx.ID_ANY, 'None')
+            self.channel_all = wx.Button(self.channels_panel, wx.ID_ANY, 'All')
+            self.channel_none = wx.Button(self.channels_panel, wx.ID_ANY, 'None')
             channel_buttons.Add(self.channel_all, 0, wx.ALL, 5)
             channel_buttons.Add(self.channel_none, 0, wx.ALL, 5)
             channels.Add(channel_buttons, 0, wx.ALL, 0)
-            self.channel_list = wx.CheckListBox(self, wx.ID_ANY, choices=[],
-                                                size=(-1, 100))
+            self.channel_list = wx.CheckListBox(
+                self.channels_panel, wx.ID_ANY, choices=[], size=(-1, 100))
             self.channel_list.Disable()
             self.channel_all.Disable()
             self.channel_none.Disable()
             channels.Add(self.channel_list, 1, wx.EXPAND | wx.ALL, 5)
-            sizer.Add(channels, 0, wx.EXPAND | wx.ALL, 5)
+            self.channels_panel.SetSizer(channels)
+            sizer.Add(self.channels_panel, 0, wx.EXPAND | wx.ALL, 5)
+
+            self.template_panel = wx.Panel(self, wx.ID_ANY)
+            template = wx.StaticBoxSizer(
+                wx.StaticBox(self.template_panel, wx.ID_ANY, 'Template'),
+                wx.VERTICAL)
+            template_buttons = wx.BoxSizer(wx.HORIZONTAL)
+            self.template_clear = wx.Button(self.template_panel, wx.ID_ANY, 'Clear All')
+            self.template_import = wx.Button(self.template_panel, wx.ID_ANY, 'Import Template')
+            self.template_export = wx.Button(self.template_panel, wx.ID_ANY, 'Export Template')
+            for button in (self.template_clear, self.template_import,
+                           self.template_export):
+                template_buttons.Add(button, 0, wx.ALL, 5)
+            template.Add(template_buttons, 0, wx.ALL, 0)
+
+            self.template_grid = wx.grid.Grid(self.template_panel, wx.ID_ANY,
+                                              size=(-1, 280))
+            self.template_grid.CreateGrid(self.TEMPLATE_INITIAL_ROWS,
+                                          len(self.template_fields))
+            for col, label in enumerate(self.template_fields):
+                self.template_grid.SetColLabelValue(col, label)
+                self.template_grid.SetColSize(col, 150)
+            self.fit_template_columns()
+            self.set_template_channel_editors()
+            self.template_grid.Bind(wx.EVT_KEY_DOWN, self.on_template_key_down)
+            self.template_grid.Bind(wx.grid.EVT_GRID_CELL_CHANGING,
+                                    self.on_template_cell_changing)
+            self.template_grid.Bind(wx.grid.EVT_GRID_CELL_CHANGED,
+                                    self.on_template_cell_changed)
+            self.template_grid.Bind(wx.EVT_SIZE, self.on_template_grid_size)
+            self.template_grid.Bind(wx.grid.EVT_GRID_SELECT_CELL,
+                                    self.on_template_select_cell)
+            self.template_grid.Bind(wx.grid.EVT_GRID_CELL_LEFT_DCLICK,
+                                    self.on_template_cell_left_dclick)
+            template.Add(self.template_grid, 1, wx.EXPAND | wx.ALL, 5)
+            self.template_panel.SetSizer(template)
+            self.template_panel.Hide()
+            sizer.Add(self.template_panel, 0, wx.EXPAND | wx.ALL, 5)
         else:
+            self.channels_panel = None
             self.channel_list = None
             self.channel_all = None
             self.channel_none = None
+            self.template_panel = None
+            self.template_grid = None
 
         out = wx.StaticBoxSizer(wx.StaticBox(self, wx.ID_ANY, 'Output Folder'), wx.HORIZONTAL)
         self.output = wx.TextCtrl(self, wx.ID_ANY, self.default_folder)
@@ -316,9 +377,14 @@ class ConvertFilesDialog(wx.Dialog):
         clear.Bind(wx.EVT_BUTTON, self.on_clear)
         browse.Bind(wx.EVT_BUTTON, self.on_browse_output)
         convert.Bind(wx.EVT_BUTTON, self.on_convert)
+        if self.mode is not None:
+            self.mode.Bind(wx.EVT_RADIOBOX, self.on_mode)
         if self.channel_list is not None:
             self.channel_all.Bind(wx.EVT_BUTTON, self.on_select_all_channels)
             self.channel_none.Bind(wx.EVT_BUTTON, self.on_select_no_channels)
+            self.template_clear.Bind(wx.EVT_BUTTON, self.on_template_clear)
+            self.template_import.Bind(wx.EVT_BUTTON, self.on_template_import)
+            self.template_export.Bind(wx.EVT_BUTTON, self.on_template_export)
 
     def on_add_files(self, evt):
         dlg = wx.FileDialog(
@@ -354,22 +420,65 @@ class ConvertFilesDialog(wx.Dialog):
         finally:
             dlg.Destroy()
 
+    def on_mode(self, evt):
+        template_mode = self.template_mode()
+        if self.channels_panel is not None:
+            self.channels_panel.Show(not template_mode)
+        if self.template_panel is not None:
+            self.template_panel.Show(template_mode)
+        self.Layout()
+        if template_mode:
+            wx.CallAfter(self.fit_template_columns)
+
     def on_select_all_channels(self, evt):
         self.check_all_channels(True)
 
     def on_select_no_channels(self, evt):
         self.check_all_channels(False)
 
+    def on_template_import(self, evt):
+        dlg = wx.FileDialog(
+            self,
+            'Import template:',
+            wildcard='CSV template files (*.csv)|*.csv|All files|*',
+            style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST,
+        )
+        try:
+            if dlg.ShowModal() == wx.ID_OK:
+                self.push_template_undo()
+                self.set_template_rows(self.template_reader(dlg.GetPath()))
+        except Exception as e:
+            wx.MessageBox(str(e), 'Conversion Error', wx.OK | wx.ICON_ERROR)
+        finally:
+            dlg.Destroy()
+
+    def on_template_export(self, evt):
+        dlg = wx.FileDialog(
+            self,
+            'Export template:',
+            defaultFile='template.csv',
+            wildcard='CSV template files (*.csv)|*.csv|All files|*',
+            style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT,
+        )
+        try:
+            if dlg.ShowModal() == wx.ID_OK:
+                self.template_writer(dlg.GetPath(), self.template_rows())
+        except Exception as e:
+            wx.MessageBox(str(e), 'Conversion Error', wx.OK | wx.ICON_ERROR)
+        finally:
+            dlg.Destroy()
+
+    def on_template_clear(self, evt):
+        self.push_template_undo()
+        self.clear_template_grid()
+
     def on_convert(self, evt):
         if not self.paths:
             wx.MessageBox('No files selected.', 'Conversion Error',
                           wx.OK | wx.ICON_ERROR)
             return
-        if self.mode is not None and self.mode.GetSelection() == 1:
-            wx.MessageBox('Convert from Template is not available yet.',
-                          'Conversion Error', wx.OK | wx.ICON_ERROR)
-            return
-        if self.channel_list is not None and not self.selected_channel_labels():
+        if (self.channel_list is not None and not self.template_mode() and
+                not self.selected_channel_labels()):
             wx.MessageBox('Select at least one channel to convert.',
                           'Conversion Error', wx.OK | wx.ICON_ERROR)
             return
@@ -398,14 +507,20 @@ class ConvertFilesDialog(wx.Dialog):
                          for i in range(self.channel_list.GetCount()))
         old_checked = set(self.selected_channel_labels())
         labels = []
+        timestamps = {}
         try:
             for path in self.paths:
                 labels.extend(self.channel_loader(path))
+                if self.timestamp_loader is not None:
+                    timestamps[path] = self.timestamp_loader(path)
         except Exception as e:
             wx.MessageBox(str(e), 'Conversion Error', wx.OK | wx.ICON_ERROR)
             labels = []
+            timestamps = {}
 
         labels = sorted(set(labels))
+        self.channel_choices = labels
+        self.timestamps_by_path = timestamps
         self.channel_list.Clear()
         for label in labels:
             self.channel_list.Append(label)
@@ -416,15 +531,397 @@ class ConvertFilesDialog(wx.Dialog):
         self.channel_list.Enable(enabled)
         self.channel_all.Enable(enabled)
         self.channel_none.Enable(enabled)
+        self.set_template_channel_editors()
+        self.refresh_template_timestamp_editors()
 
     def check_all_channels(self, checked):
         for i in range(self.channel_list.GetCount()):
             self.channel_list.Check(i, checked)
 
+    def template_mode(self):
+        return self.mode is not None and self.mode.GetSelection() == 1
+
+    def template_rows(self, include_blank=False):
+        if self.template_grid is None:
+            return None
+        rows = []
+        for row in range(self.template_grid.GetNumberRows()):
+            data = {
+                field: self.template_grid.GetCellValue(row, col).strip()
+                for col, field in enumerate(self.template_fields)
+            }
+            if include_blank or any(data.values()):
+                rows.append(data)
+        return rows
+
+    def set_template_rows(self, rows):
+        grid = self.template_grid
+        if grid.GetNumberRows():
+            grid.DeleteRows(0, grid.GetNumberRows())
+        rows = rows or []
+        row_count = max(self.TEMPLATE_INITIAL_ROWS,
+                        len(rows) + self.TEMPLATE_TRAILING_ROWS)
+        grid.AppendRows(row_count)
+        for row_i, row in enumerate(rows):
+            for col, field in enumerate(self.template_fields):
+                grid.SetCellValue(row_i, col, row.get(field, ''))
+        self.set_template_channel_editors()
+        self.refresh_template_timestamp_editors()
+        self.ensure_template_trailing_rows()
+        self.fit_template_columns()
+
+    def clear_template_grid(self):
+        grid = self.template_grid
+        if grid.GetNumberRows():
+            grid.DeleteRows(0, grid.GetNumberRows())
+        grid.AppendRows(self.TEMPLATE_INITIAL_ROWS)
+        self.set_template_channel_editors()
+        self.refresh_template_timestamp_editors()
+        self.fit_template_columns()
+
+    def template_snapshot(self):
+        grid = self.template_grid
+        return [
+            [grid.GetCellValue(row, col)
+             for col in range(grid.GetNumberCols())]
+            for row in range(grid.GetNumberRows())
+        ]
+
+    def template_snapshot_size(self, snapshot):
+        return sum(len(value.encode('utf-8')) + 8
+                   for row in snapshot for value in row)
+
+    def clear_template_redo(self):
+        self.template_redo = []
+        self.template_redo_bytes = 0
+
+    def push_template_history(self, history, bytes_attr, snapshot, trim=True):
+        if history and history[-1][1] == snapshot:
+            return
+        size = self.template_snapshot_size(snapshot)
+        history.append((size, snapshot))
+        setattr(self, bytes_attr, getattr(self, bytes_attr) + size)
+        if trim:
+            self.trim_template_history()
+
+    def trim_template_history(self):
+        while (self.template_undo_bytes + self.template_redo_bytes >
+               self.TEMPLATE_UNDO_LIMIT_BYTES):
+            if self.template_undo:
+                old_size, _ = self.template_undo.pop(0)
+                self.template_undo_bytes -= old_size
+            elif self.template_redo:
+                old_size, _ = self.template_redo.pop(0)
+                self.template_redo_bytes -= old_size
+            else:
+                return
+
+    def push_template_undo(self, clear_redo=True, trim=True):
+        if self.suppress_template_undo or self.template_grid is None:
+            return
+        if clear_redo:
+            self.clear_template_redo()
+        snapshot = self.template_snapshot()
+        self.push_template_history(
+            self.template_undo, 'template_undo_bytes', snapshot, trim=trim)
+
+    def undo_template(self):
+        if not self.template_undo:
+            return
+        self.push_template_history(
+            self.template_redo, 'template_redo_bytes',
+            self.template_snapshot(), trim=False)
+        size, snapshot = self.template_undo.pop()
+        self.template_undo_bytes -= size
+        self.restore_template_snapshot(snapshot)
+        self.trim_template_history()
+
+    def redo_template(self):
+        if not self.template_redo:
+            return
+        self.push_template_undo(clear_redo=False, trim=False)
+        size, snapshot = self.template_redo.pop()
+        self.template_redo_bytes -= size
+        self.restore_template_snapshot(snapshot)
+        self.trim_template_history()
+
+    def restore_template_snapshot(self, snapshot):
+        grid = self.template_grid
+        self.suppress_template_undo = True
+        try:
+            if grid.GetNumberRows():
+                grid.DeleteRows(0, grid.GetNumberRows())
+            grid.AppendRows(max(self.TEMPLATE_INITIAL_ROWS, len(snapshot)))
+            for row_i, row in enumerate(snapshot):
+                for col_i, value in enumerate(row[:grid.GetNumberCols()]):
+                    grid.SetCellValue(row_i, col_i, value)
+            self.set_template_channel_editors()
+            self.refresh_template_timestamp_editors()
+            self.ensure_template_trailing_rows()
+            self.fit_template_columns()
+            grid.ForceRefresh()
+        finally:
+            self.suppress_template_undo = False
+
+    def on_template_grid_size(self, evt):
+        self.fit_template_columns()
+        evt.Skip()
+
+    def fit_template_columns(self):
+        grid = self.template_grid
+        if grid is None:
+            return
+        cols = grid.GetNumberCols()
+        if not cols:
+            return
+        width = grid.GetGridWindow().GetClientSize().GetWidth()
+        if width <= 0:
+            width = grid.GetClientSize().GetWidth() - grid.GetRowLabelSize()
+        width = max(width, cols)
+        col_width = max(1, width // cols)
+        for col in range(cols - 1):
+            grid.SetColSize(col, col_width)
+        grid.SetColSize(cols - 1, max(1, width - col_width * (cols - 1)))
+
+    def template_channel_col(self):
+        try:
+            return self.template_fields.index('Channel')
+        except ValueError:
+            return None
+
+    def template_timestamp_col(self):
+        try:
+            return self.template_fields.index('Timestamp')
+        except ValueError:
+            return None
+
+    def template_eclipse_id_col(self):
+        try:
+            return self.template_fields.index('Eclipse ID')
+        except ValueError:
+            return None
+
+    def set_template_channel_editors(self, start_row=0):
+        if self.template_grid is None:
+            return
+        channel_col = self.template_channel_col()
+        if channel_col is None:
+            return
+        for row in range(start_row, self.template_grid.GetNumberRows()):
+            editor = wx.grid.GridCellChoiceEditor(self.channel_choices, True)
+            self.template_grid.SetCellEditor(row, channel_col, editor)
+
+    def set_template_timestamp_editor(self, row):
+        timestamp_col = self.template_timestamp_col()
+        if timestamp_col is None or row < 0:
+            return
+        editor = wx.grid.GridCellChoiceEditor(
+            self.timestamp_choices_for_row(row), True)
+        self.template_grid.SetCellEditor(row, timestamp_col, editor)
+
+    def refresh_template_timestamp_editors(self):
+        if self.template_grid is None:
+            return
+        for row in range(self.template_grid.GetNumberRows()):
+            self.set_template_timestamp_editor(row)
+
+    def timestamp_choices_for_row(self, row):
+        eclipse_col = self.template_eclipse_id_col()
+        if eclipse_col is None:
+            return []
+        eclipse_id = self.template_grid.GetCellValue(row, eclipse_col).strip()
+        if not eclipse_id:
+            return []
+        channel_col = self.template_channel_col()
+        channel = ''
+        if channel_col is not None:
+            channel = self.template_grid.GetCellValue(row, channel_col).strip()
+        choices = []
+        for path, timestamp_rows in self.timestamps_by_path.items():
+            stem = os.path.splitext(os.path.basename(path))[0]
+            if (self.eclipse_id_matcher is None or
+                    self.eclipse_id_matcher(stem, eclipse_id)):
+                choices.extend(timestamp for row_channel, timestamp in timestamp_rows
+                               if not channel or row_channel == channel)
+        return sorted(set(choices))
+
+    def template_row_blank(self, row):
+        return not any(
+            self.template_grid.GetCellValue(row, col).strip()
+            for col in range(self.template_grid.GetNumberCols())
+        )
+
+    def ensure_template_rows(self, count):
+        if self.template_grid is None:
+            return
+        current = self.template_grid.GetNumberRows()
+        if count > current:
+            self.template_grid.AppendRows(count - current)
+            self.set_template_channel_editors(current)
+            for row in range(current, self.template_grid.GetNumberRows()):
+                self.set_template_timestamp_editor(row)
+
+    def ensure_template_trailing_rows(self):
+        if self.template_grid is None:
+            return
+        self.ensure_template_rows(self.TEMPLATE_INITIAL_ROWS)
+        trailing = 0
+        for row in reversed(range(self.template_grid.GetNumberRows())):
+            if not self.template_row_blank(row):
+                break
+            trailing += 1
+        if trailing < self.TEMPLATE_TRAILING_ROWS:
+            self.ensure_template_rows(
+                self.template_grid.GetNumberRows() +
+                self.TEMPLATE_TRAILING_ROWS - trailing)
+
+    def on_template_cell_changing(self, evt):
+        self.push_template_undo()
+        evt.Skip()
+
+    def on_template_cell_changed(self, evt):
+        if evt.GetCol() in (self.template_eclipse_id_col(),
+                            self.template_channel_col()):
+            self.set_template_timestamp_editor(evt.GetRow())
+        self.ensure_template_trailing_rows()
+        evt.Skip()
+
+    def on_template_select_cell(self, evt):
+        self.set_template_timestamp_editor(evt.GetRow())
+        evt.Skip()
+
+    def on_template_cell_left_dclick(self, evt):
+        self.set_template_timestamp_editor(evt.GetRow())
+        evt.Skip()
+
+    def on_template_key_down(self, evt):
+        key = evt.GetKeyCode()
+        shortcut = evt.CmdDown() or evt.ControlDown()
+        if (shortcut and
+                ((key in (ord('Z'), ord('z')) and evt.ShiftDown()) or
+                 key in (ord('Y'), ord('y')))):
+            self.redo_template()
+            return
+        if key in (ord('Z'), ord('z')) and shortcut:
+            self.undo_template()
+            return
+        if key in (ord('V'), ord('v')) and shortcut:
+            self.paste_template_clipboard()
+            return
+        if key in (wx.WXK_DELETE, wx.WXK_BACK):
+            cells = self.selected_template_cells()
+            if not cells:
+                cells = [(self.template_grid.GetGridCursorRow(),
+                          self.template_grid.GetGridCursorCol())]
+            self.push_template_undo()
+            self.set_template_cells(cells, '')
+            return
+        evt.Skip()
+
+    def paste_template_clipboard(self):
+        text = self.template_clipboard_text()
+        values = self.clipboard_grid_values(text)
+        if not values:
+            return
+
+        if len(values) == 1 and len(values[0]) == 1:
+            cells = self.selected_template_cells()
+            if len(cells) > 1:
+                self.push_template_undo()
+                self.set_template_cells(cells, values[0][0])
+                return
+
+        start_row, start_col = self.template_paste_anchor()
+        self.push_template_undo()
+        self.ensure_template_rows(start_row + len(values))
+        for row_i, row_values in enumerate(values):
+            for col_i, value in enumerate(row_values):
+                col = start_col + col_i
+                if col < self.template_grid.GetNumberCols():
+                    self.template_grid.SetCellValue(start_row + row_i,
+                                                    col, value)
+        self.refresh_template_timestamp_editors()
+        self.ensure_template_trailing_rows()
+        self.template_grid.ForceRefresh()
+
+    def template_clipboard_text(self):
+        data = wx.TextDataObject()
+        if not wx.TheClipboard.Open():
+            return ''
+        try:
+            if wx.TheClipboard.GetData(data):
+                return data.GetText()
+            return ''
+        finally:
+            wx.TheClipboard.Close()
+
+    def clipboard_grid_values(self, text):
+        if text == '':
+            return []
+        text = text.replace('\r\n', '\n').replace('\r', '\n')
+        lines = text.split('\n')
+        if lines and lines[-1] == '':
+            lines.pop()
+        return [line.split('\t') for line in lines]
+
+    def template_coord(self, coord):
+        try:
+            return coord.GetRow(), coord.GetCol()
+        except AttributeError:
+            return coord[0], coord[1]
+
+    def selected_template_cells(self):
+        grid = self.template_grid
+        cells = set()
+        for top_left, bottom_right in zip(grid.GetSelectionBlockTopLeft(),
+                                          grid.GetSelectionBlockBottomRight()):
+            top, left = self.template_coord(top_left)
+            bottom, right = self.template_coord(bottom_right)
+            for row in range(top, bottom + 1):
+                for col in range(left, right + 1):
+                    cells.add((row, col))
+        for coord in grid.GetSelectedCells():
+            cells.add(self.template_coord(coord))
+        for row in grid.GetSelectedRows():
+            for col in range(grid.GetNumberCols()):
+                cells.add((row, col))
+        for col in grid.GetSelectedCols():
+            for row in range(grid.GetNumberRows()):
+                cells.add((row, col))
+        return sorted(cells)
+
+    def set_template_cells(self, cells, value):
+        max_row = max(row for row, _ in cells)
+        self.ensure_template_rows(max_row + 1)
+        for row, col in cells:
+            if col < self.template_grid.GetNumberCols():
+                self.template_grid.SetCellValue(row, col, value)
+        self.refresh_template_timestamp_editors()
+        self.ensure_template_trailing_rows()
+        self.template_grid.ForceRefresh()
+
+    def template_paste_anchor(self):
+        grid = self.template_grid
+        blocks = grid.GetSelectionBlockTopLeft()
+        if blocks:
+            return self.template_coord(blocks[0])
+        cells = grid.GetSelectedCells()
+        if cells:
+            return self.template_coord(cells[0])
+        rows = grid.GetSelectedRows()
+        if rows:
+            return rows[0], 0
+        cols = grid.GetSelectedCols()
+        if cols:
+            return max(grid.GetGridCursorRow(), 0), cols[0]
+        return max(grid.GetGridCursorRow(), 0), max(grid.GetGridCursorCol(), 0)
+
     def convert_selected(self):
         parent = self.GetParent()
         output_folder = self.output.GetValue()
-        channel_labels = self.selected_channel_labels()
+        template_rows = (self.template_rows(include_blank=True)
+                         if self.template_mode() else None)
+        channel_labels = None if template_rows is not None else self.selected_channel_labels()
         if parent is not None:
             parent.SetStatusText('Running %s to .tsv converter...' % self.source_name)
 
@@ -434,11 +931,21 @@ class ConvertFilesDialog(wx.Dialog):
             busy = True
             written = []
             for path in self.paths:
-                if channel_labels is None:
+                if template_rows is not None:
+                    written.extend(self.convert_file(
+                        path, output_folder, template_rows=template_rows,
+                        available_channels=self.channel_choices) or [])
+                elif channel_labels is None:
                     written.extend(self.convert_file(path, output_folder) or [])
                 else:
                     written.extend(self.convert_file(
                         path, output_folder, channel_labels=channel_labels) or [])
+            if template_rows is not None and not written:
+                if parent is not None:
+                    parent.SetStatusText('No matching template recordings found.')
+                wx.MessageBox('No matching template recordings found.',
+                              'Conversion Error', wx.OK | wx.ICON_ERROR)
+                return
             if channel_labels is not None and not written:
                 if parent is not None:
                     parent.SetStatusText('No matching %s channels found.' %
@@ -619,11 +1126,18 @@ class PhysiologyFrame(PersistentFrame):
             self.__nb.DeletePage(k)
 
     def ConvertFiles(self, title, wildcard, convert_file, source_name,
-                     channel_loader=None):
+                     channel_loader=None, template_reader=None,
+                     template_writer=None, template_fields=None,
+                     timestamp_loader=None, eclipse_id_matcher=None):
         dialog = ConvertFilesDialog(self, title, wildcard, self.__filetree.root,
                                     convert_file, source_name,
                                     source_name == 'Eclipse',
-                                    channel_loader=channel_loader)
+                                    channel_loader=channel_loader,
+                                    template_reader=template_reader,
+                                    template_writer=template_writer,
+                                    template_fields=template_fields,
+                                    timestamp_loader=timestamp_loader,
+                                    eclipse_id_matcher=eclipse_id_matcher)
         try:
             dialog.ShowModal()
             return dialog.converted
@@ -639,7 +1153,12 @@ class PhysiologyFrame(PersistentFrame):
         import convert_eclipse
         self.ConvertFiles('Convert Eclipse Data', 'CSV files (*.csv)|*.csv',
                           convert_eclipse.main, 'Eclipse',
-                          channel_loader=convert_eclipse.channel_labels)
+                          channel_loader=convert_eclipse.channel_labels,
+                          template_reader=convert_eclipse.read_template_csv,
+                          template_writer=convert_eclipse.write_template_csv,
+                          template_fields=convert_eclipse.TEMPLATE_FIELDS,
+                          timestamp_loader=convert_eclipse.template_timestamp_rows,
+                          eclipse_id_matcher=convert_eclipse.eclipse_id_matches)
 
     def OnExport(self, evt):
         import merge_export_saved
