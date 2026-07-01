@@ -190,14 +190,19 @@ def to_numeric(value):
 
 #-------------------------------------------------------------------------------
 
-def main(file_path):
+def main(file_path, output_folder=None):
+    output_folder = output_folder or os.path.dirname(file_path)
+    if not os.path.isdir(output_folder):
+        raise ValueError(f"Output folder does not exist: {output_folder}")
+
     headers, rows = read_txt_file(file_path)
     if rows is None:
-        return
+        return []
 
     headers, rows = process_records(headers, rows)
     records = create_records_from_rows(headers, rows)
     grouped = group_records(records)
+    written = []
 
     for system_id, stim_freq_dict in grouped.items():
         for stim_freq, rec_list in stim_freq_dict.items():
@@ -255,11 +260,12 @@ def main(file_path):
                 data=raw_array,
             )
 
-            out_path = os.path.join(os.path.dirname(file_path),
-                                    recordname + '.tsv')
+            out_path = os.path.join(output_folder, recordname + '.tsv')
             template.write(out_path)
+            written.append(out_path)
 
     print("Done! This window should close automatically")
+    return written
 
 
 def run():

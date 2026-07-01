@@ -170,13 +170,18 @@ def filename_part(value):
 
 #-------------------------------------------------------------------------------
 
-def main(file_path):
+def main(file_path, output_folder=None):
+    output_folder = output_folder or os.path.dirname(file_path)
+    if not os.path.isdir(output_folder):
+        raise ValueError(f"Output folder does not exist: {output_folder}")
+
     headers, rows = read_csv_file(file_path)
     if rows is None:
-        return
+        return []
 
     records = create_records_from_rows(headers, rows)
     originalname = os.path.splitext(os.path.basename(file_path))[0]
+    written = []
 
     for record in records:
 
@@ -212,11 +217,12 @@ def main(file_path):
             data=raw_array,
         )
 
-        out_path = os.path.join(os.path.dirname(file_path),
-                                recordname + '.tsv')
+        out_path = os.path.join(output_folder, recordname + '.tsv')
         template.write(out_path)
+        written.append(out_path)
 
     print("Done! This window should close automatically")
+    return written
 
 
 def run():

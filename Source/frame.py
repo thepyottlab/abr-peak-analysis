@@ -232,6 +232,150 @@ class PhysiologyNbFileDropTarget(wx.FileDropTarget):
 
 #----------------------------------------------------------------------------
 
+class ConvertFilesDialog(wx.Dialog):
+
+    def __init__(self, parent, title, wildcard, default_folder,
+                 convert_file, source_name):
+        wx.Dialog.__init__(self, parent, title=title, size=(700, 420))
+        self.paths = []
+        self.default_folder = default_folder if os.path.isdir(default_folder) else os.getcwd()
+        self.convert_file = convert_file
+        self.source_name = source_name
+        self.converted = False
+
+        sizer = wx.BoxSizer(wx.VERTICAL)
+
+        buttons = wx.BoxSizer(wx.HORIZONTAL)
+        add_files = wx.Button(self, wx.ID_ANY, 'Add Files')
+        clear = wx.Button(self, wx.ID_ANY, 'Clear')
+        buttons.Add(add_files, 0, wx.ALL, 5)
+        buttons.Add(clear, 0, wx.ALL, 5)
+        sizer.Add(buttons, 0, wx.ALL, 0)
+
+        self.list = wx.ListCtrl(self, wx.ID_ANY, style=wx.LC_REPORT)
+        self.list.InsertColumn(0, 'File')
+        self.list.InsertColumn(1, 'Folder')
+        self.list.SetColumnWidth(0, 240)
+        self.list.SetColumnWidth(1, 420)
+        sizer.Add(self.list, 1, wx.EXPAND | wx.ALL, 5)
+
+        out = wx.StaticBoxSizer(wx.StaticBox(self, wx.ID_ANY, 'Output Folder'), wx.HORIZONTAL)
+        self.output = wx.TextCtrl(self, wx.ID_ANY, self.default_folder)
+        browse = wx.Button(self, wx.ID_ANY, 'Browse')
+        out.Add(self.output, 1, wx.EXPAND | wx.ALL, 5)
+        out.Add(browse, 0, wx.ALL, 5)
+        sizer.Add(out, 0, wx.EXPAND | wx.ALL, 5)
+
+        actions = wx.BoxSizer(wx.HORIZONTAL)
+        convert = wx.Button(self, wx.ID_ANY, 'Convert')
+        cancel = wx.Button(self, wx.ID_CANCEL)
+        actions.AddStretchSpacer()
+        actions.Add(convert, 0, wx.ALL, 5)
+        actions.Add(cancel, 0, wx.ALL, 5)
+        sizer.Add(actions, 0, wx.EXPAND | wx.ALL, 5)
+
+        self.SetSizer(sizer)
+        self.wildcard = wildcard
+        add_files.Bind(wx.EVT_BUTTON, self.on_add_files)
+        clear.Bind(wx.EVT_BUTTON, self.on_clear)
+        browse.Bind(wx.EVT_BUTTON, self.on_browse_output)
+        convert.Bind(wx.EVT_BUTTON, self.on_convert)
+
+    def on_add_files(self, evt):
+        dlg = wx.FileDialog(
+            self,
+            'Choose files to convert:',
+            defaultDir=self.default_folder,
+            wildcard=self.wildcard,
+            style=wx.FD_OPEN | wx.FD_MULTIPLE | wx.FD_FILE_MUST_EXIST,
+        )
+        try:
+            if dlg.ShowModal() == wx.ID_OK:
+                paths = dlg.GetPaths()
+                self.add_paths(paths)
+                if paths:
+                    self.default_folder = os.path.dirname(paths[0])
+                    self.output.SetValue(self.default_folder)
+        finally:
+            dlg.Destroy()
+
+    def on_clear(self, evt):
+        self.paths = []
+        self.refresh_list()
+
+    def on_browse_output(self, evt):
+        current = self.output.GetValue()
+        default = current if os.path.isdir(current) else self.default_folder
+        dlg = wx.DirDialog(self, 'Choose an output folder:',
+                           defaultPath=default,
+                           style=wx.DD_DIR_MUST_EXIST | wx.DD_CHANGE_DIR)
+        try:
+            if dlg.ShowModal() == wx.ID_OK:
+                self.output.SetValue(dlg.GetPath())
+        finally:
+            dlg.Destroy()
+
+    def on_convert(self, evt):
+        if not self.paths:
+            wx.MessageBox('No files selected.', 'Conversion Error',
+                          wx.OK | wx.ICON_ERROR)
+            return
+        if not os.path.isdir(self.output.GetValue()):
+            wx.MessageBox('Output folder does not exist.', 'Conversion Error',
+                          wx.OK | wx.ICON_ERROR)
+            return
+        self.convert_selected()
+
+    def add_paths(self, paths):
+        self.paths = sorted(set(self.paths + [p for p in paths if os.path.isfile(p)]))
+        self.refresh_list()
+
+    def refresh_list(self):
+        self.list.DeleteAllItems()
+        for path in self.paths:
+            idx = self.list.InsertItem(self.list.GetItemCount(), os.path.basename(path))
+            self.list.SetItem(idx, 1, os.path.dirname(path))
+
+    def convert_selected(self):
+        parent = self.GetParent()
+        output_folder = self.output.GetValue()
+        if parent is not None:
+            parent.SetStatusText('Running %s to .tsv converter...' % self.source_name)
+
+        busy = False
+        try:
+            wx.BeginBusyCursor()
+            busy = True
+            written = []
+            for path in self.paths:
+                written.extend(self.convert_file(path, output_folder) or [])
+            if parent is not None:
+                parent.OnRefresh()
+                parent.SetStatusText('Converted %s files successfully. '
+                                     'Please drag and drop files to canvas.' %
+                                     self.source_name)
+            noun = 'file' if len(written) == 1 else 'files'
+            wx.MessageBox('%d TSV %s written to:\n%s' %
+                          (len(written), noun, output_folder),
+                          self.GetTitle() + ' Complete',
+                          wx.OK | wx.ICON_INFORMATION)
+            self.converted = True
+            self.on_clear(None)
+        except Exception as e:
+            if parent is not None:
+                parent.SetStatusText('Could not parse %s file. '
+                                     'Most likely not a valid %s export file.' %
+                                     (self.source_name, self.source_name))
+            dlg = wx.MessageDialog(self, str(e), 'Conversion Error',
+                                   wx.OK | wx.ICON_ERROR)
+            dlg.ShowModal()
+            dlg.Destroy()
+        finally:
+            if busy:
+                wx.EndBusyCursor()
+
+#----------------------------------------------------------------------------
+
 class PhysiologyFrame(PersistentFrame):
 
     def __init__(self, name="InteractiveFrame", parent=None, splash=False, 
@@ -267,16 +411,15 @@ class PhysiologyFrame(PersistentFrame):
         file.Append(wx.ID_EXIT, '&Quit\tCtrl+Q', 'Quit Application')
         menubar.Append(file, '&File')
 
-        convert = wx.Menu()
         ID_CONVERT_IHS = wx.NewId()
         ID_CONVERT_ECLIPSE = wx.NewId()
-        convert.Append(ID_CONVERT_IHS, 'Convert &IHS files', 'Convert IHS files')
-        convert.Append(ID_CONVERT_ECLIPSE, 'Convert &Eclipse Files', 'Convert Eclipse Files')
-        menubar.Append(convert, '&Convert')
 
         tools = wx.Menu()
         ID_EXPORT = wx.NewId()
         ID_BULK_ANALYZE = wx.NewId()
+        tools.Append(ID_CONVERT_IHS, 'Convert &IHS Data', 'Convert IHS Data')
+        tools.Append(ID_CONVERT_ECLIPSE, 'Convert &Eclipse Data', 'Convert Eclipse Data')
+        tools.AppendSeparator()
         tools.Append(ID_BULK_ANALYZE, '&Bulk Analyze/Filter', 'Analyze and filter files in bulk')
         tools.Append(ID_EXPORT, '&Export', 'Export analyzed SQLite files to CSV')
         menubar.Append(tools, '&Tools')
@@ -369,37 +512,24 @@ class PhysiologyFrame(PersistentFrame):
         for k in reversed(range(self.__nb.PageCount)):
             self.__nb.DeletePage(k)
 
+    def ConvertFiles(self, title, wildcard, convert_file, source_name):
+        dialog = ConvertFilesDialog(self, title, wildcard, self.__filetree.root,
+                                    convert_file, source_name)
+        try:
+            dialog.ShowModal()
+            return dialog.converted
+        finally:
+            dialog.Destroy()
+
     def OnConvertIHS(self, evt):
         import convert_ihs
-        self.SetStatusText('Running IHS to .tsv converter...')
-        try:
-            convert_ihs.run()
-            self.OnRefresh()
-            self.SetStatusText('Converted IHS files successfully. '
-                               'Please drag and drop files to canvas.')
-        except Exception as e:
-            self.SetStatusText('Could not parse IHS file. '
-                               'Most likely not a valid IHS export file.')
-            dlg = wx.MessageDialog(self, str(e), 'Conversion Error',
-                                   wx.OK | wx.ICON_ERROR)
-            dlg.ShowModal()
-            dlg.Destroy()
+        self.ConvertFiles('Convert IHS', 'TXT files (*.txt)|*.txt',
+                          convert_ihs.main, 'IHS')
 
     def OnConvertEclipse(self, evt):
         import convert_eclipse
-        self.SetStatusText('Running Eclipse to .tsv converter...')
-        try:
-            convert_eclipse.run()
-            self.OnRefresh()
-            self.SetStatusText('Converted Eclipse files successfully. '
-                               'Please drag and drop files to canvas.')
-        except Exception as e:
-            self.SetStatusText('Could not parse Eclipse file. '
-                               'Most likely not a valid Eclipse export file.')
-            dlg = wx.MessageDialog(self, str(e), 'Conversion Error',
-                                   wx.OK | wx.ICON_ERROR)
-            dlg.ShowModal()
-            dlg.Destroy()
+        self.ConvertFiles('Convert Eclipse Data', 'CSV files (*.csv)|*.csv',
+                          convert_eclipse.main, 'Eclipse')
 
     def OnExport(self, evt):
         import merge_export_saved
