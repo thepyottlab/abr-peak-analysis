@@ -235,15 +235,42 @@ class PhysiologyNbFileDropTarget(wx.FileDropTarget):
 class ConvertFilesDialog(wx.Dialog):
 
     def __init__(self, parent, title, wildcard, default_folder,
-                 convert_file, source_name):
-        wx.Dialog.__init__(self, parent, title=title, size=(700, 420))
+                 convert_file, source_name, show_eclipse_options=False):
+        wx.Dialog.__init__(self, parent, title=title,
+                           size=(700, 540 if show_eclipse_options else 420))
         self.paths = []
         self.default_folder = default_folder if os.path.isdir(default_folder) else os.getcwd()
         self.convert_file = convert_file
         self.source_name = source_name
+        self.show_eclipse_options = show_eclipse_options
         self.converted = False
 
         sizer = wx.BoxSizer(wx.VERTICAL)
+
+        if show_eclipse_options:
+            self.mode = wx.RadioBox(
+                self, wx.ID_ANY, 'Conversion Mode',
+                choices=['Convert All', 'Convert from Template'],
+                majorDimension=2,
+                style=wx.RA_SPECIFY_COLS,
+            )
+            sizer.Add(self.mode, 0, wx.EXPAND | wx.ALL, 5)
+
+            channel = wx.StaticBoxSizer(
+                wx.StaticBox(self, wx.ID_ANY, 'Channel Filter'), wx.HORIZONTAL)
+            self.only_channel = wx.CheckBox(self, wx.ID_ANY,
+                                            'Only Convert Specific Channel')
+            self.channel_label = wx.TextCtrl(self, wx.ID_ANY, '')
+            self.channel_label.Disable()
+            channel.Add(self.only_channel, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
+            channel.Add(wx.StaticText(self, wx.ID_ANY, 'Channel Label (Tr Name)'),
+                        0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
+            channel.Add(self.channel_label, 1, wx.EXPAND | wx.ALL, 5)
+            sizer.Add(channel, 0, wx.EXPAND | wx.ALL, 5)
+        else:
+            self.mode = None
+            self.only_channel = None
+            self.channel_label = None
 
         buttons = wx.BoxSizer(wx.HORIZONTAL)
         add_files = wx.Button(self, wx.ID_ANY, 'Add Files')
@@ -280,6 +307,8 @@ class ConvertFilesDialog(wx.Dialog):
         clear.Bind(wx.EVT_BUTTON, self.on_clear)
         browse.Bind(wx.EVT_BUTTON, self.on_browse_output)
         convert.Bind(wx.EVT_BUTTON, self.on_convert)
+        if self.only_channel is not None:
+            self.only_channel.Bind(wx.EVT_CHECKBOX, self.on_only_channel)
 
     def on_add_files(self, evt):
         dlg = wx.FileDialog(
@@ -315,10 +344,17 @@ class ConvertFilesDialog(wx.Dialog):
         finally:
             dlg.Destroy()
 
+    def on_only_channel(self, evt):
+        self.channel_label.Enable(self.only_channel.GetValue())
+
     def on_convert(self, evt):
         if not self.paths:
             wx.MessageBox('No files selected.', 'Conversion Error',
                           wx.OK | wx.ICON_ERROR)
+            return
+        if self.mode is not None and self.mode.GetSelection() == 1:
+            wx.MessageBox('Convert from Template is not available yet.',
+                          'Conversion Error', wx.OK | wx.ICON_ERROR)
             return
         if not os.path.isdir(self.output.GetValue()):
             wx.MessageBox('Output folder does not exist.', 'Conversion Error',
@@ -339,6 +375,7 @@ class ConvertFilesDialog(wx.Dialog):
     def convert_selected(self):
         parent = self.GetParent()
         output_folder = self.output.GetValue()
+        channel_label = self.selected_channel_label()
         if parent is not None:
             parent.SetStatusText('Running %s to .tsv converter...' % self.source_name)
 
@@ -348,7 +385,20 @@ class ConvertFilesDialog(wx.Dialog):
             busy = True
             written = []
             for path in self.paths:
-                written.extend(self.convert_file(path, output_folder) or [])
+                if channel_label is None:
+                    written.extend(self.convert_file(path, output_folder) or [])
+                else:
+                    written.extend(self.convert_file(
+                        path, output_folder, channel_label=channel_label) or [])
+            if channel_label is not None and not written:
+                if parent is not None:
+                    parent.SetStatusText('No matching %s channels found.' %
+                                         self.source_name)
+                wx.MessageBox(
+                    "No matching channels found in selected files. "
+                    "Example channel name: 'R: A2-Cz'.",
+                    'Conversion Error', wx.OK | wx.ICON_ERROR)
+                return
             if parent is not None:
                 parent.OnRefresh()
                 parent.SetStatusText('Converted %s files successfully. '
@@ -373,6 +423,11 @@ class ConvertFilesDialog(wx.Dialog):
         finally:
             if busy:
                 wx.EndBusyCursor()
+
+    def selected_channel_label(self):
+        if self.only_channel is None or not self.only_channel.GetValue():
+            return None
+        return self.channel_label.GetValue().strip()
 
 #----------------------------------------------------------------------------
 
@@ -514,7 +569,8 @@ class PhysiologyFrame(PersistentFrame):
 
     def ConvertFiles(self, title, wildcard, convert_file, source_name):
         dialog = ConvertFilesDialog(self, title, wildcard, self.__filetree.root,
-                                    convert_file, source_name)
+                                    convert_file, source_name,
+                                    source_name == 'Eclipse')
         try:
             dialog.ShowModal()
             return dialog.converted

@@ -188,6 +188,15 @@ def to_numeric(value):
     except (TypeError, ValueError):
         return np.nan
 
+
+def parse_time(value):
+    for fmt in ('%H:%M:%S', '%H:%M', '%I:%M:%S %p', '%I:%M %p'):
+        try:
+            return datetime.strptime(value, fmt)
+        except ValueError:
+            pass
+    raise ValueError(f"Could not parse IHS time: {value}")
+
 #-------------------------------------------------------------------------------
 
 def main(file_path, output_folder=None):
@@ -210,10 +219,8 @@ def main(file_path, output_folder=None):
             rec_list.sort(key=lambda r: to_numeric(r.Intensity))
 
             # Date and time
-            dt = datetime.strptime(
-                f'{rec_list[0].Rec_Date} {rec_list[0].Rec_Time}',
-                '%Y-%m-%d %H:%M:%S')
-            date_str = f"{dt.month}/{dt.day}/{dt.year} {dt.strftime('%I:%M %p')}"
+            time = parse_time(rec_list[0].Rec_Time)
+            date_str = f"{rec_list[0].Rec_Date.replace('-', '/')} {time.strftime('%I:%M %p')}"
 
             # Frequency and waveform type
             if stim_freq == '0':

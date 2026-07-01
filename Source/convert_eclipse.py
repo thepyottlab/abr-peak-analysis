@@ -156,13 +156,20 @@ def to_numeric(value):
         return np.nan
 
 
-def parse_datetime(value):
-    for fmt in ('%m-%d-%Y %H:%M:%S', '%m/%d/%Y %I:%M %p'):
+def split_datetime(value):
+    parts = value.split(None, 1)
+    if len(parts) == 2:
+        return parts
+    raise ValueError(f"Could not parse Eclipse date/time: {value}")
+
+
+def parse_time(value):
+    for fmt in ('%H:%M:%S', '%H:%M', '%I:%M:%S %p', '%I:%M %p'):
         try:
             return datetime.strptime(value, fmt)
         except ValueError:
             pass
-    raise ValueError(f"Could not parse Eclipse date/time: {value}")
+    raise ValueError(f"Could not parse Eclipse time: {value}")
 
 
 def filename_part(value):
@@ -170,7 +177,7 @@ def filename_part(value):
 
 #-------------------------------------------------------------------------------
 
-def main(file_path, output_folder=None):
+def main(file_path, output_folder=None, channel_label=None):
     output_folder = output_folder or os.path.dirname(file_path)
     if not os.path.isdir(output_folder):
         raise ValueError(f"Output folder does not exist: {output_folder}")
@@ -180,14 +187,18 @@ def main(file_path, output_folder=None):
         return []
 
     records = create_records_from_rows(headers, rows)
+    if channel_label is not None:
+        records = [r for r in records if getattr(r, 'Tr_Name', None) == channel_label]
+
     originalname = os.path.splitext(os.path.basename(file_path))[0]
     written = []
 
     for record in records:
 
-        dt = parse_datetime(record.Date_Time)
-        date_str = f"{dt.month}/{dt.day}/{dt.year} {dt.strftime('%I:%M %p')}"        
-        time_str = dt.strftime('%I-%M-%S-%p')
+        date_part, time_part = split_datetime(record.Date_Time)
+        time = parse_time(time_part)
+        date_str = f"{date_part.replace('-', '/')} {time.strftime('%I:%M %p')}"
+        time_str = time.strftime('%I-%M-%S-%p')
         recordname = f"{originalname}_{time_str}_{filename_part(record.Tr_Name)}"
         print(f"Converting {recordname} to a .tsv ABR file")
 
