@@ -177,7 +177,15 @@ def filename_part(value):
 
 #-------------------------------------------------------------------------------
 
-def main(file_path, output_folder=None, channel_label=None):
+def channel_labels(file_path):
+    headers, rows = read_csv_file(file_path)
+    if rows is None:
+        return []
+    idx = headers.index('Tr_Name')
+    return sorted(set(row[idx] for row in rows if idx < len(row) and row[idx]))
+
+
+def main(file_path, output_folder=None, channel_labels=None):
     output_folder = output_folder or os.path.dirname(file_path)
     if not os.path.isdir(output_folder):
         raise ValueError(f"Output folder does not exist: {output_folder}")
@@ -187,8 +195,10 @@ def main(file_path, output_folder=None, channel_label=None):
         return []
 
     records = create_records_from_rows(headers, rows)
-    if channel_label is not None:
-        records = [r for r in records if getattr(r, 'Tr_Name', None) == channel_label]
+    if channel_labels is not None:
+        channel_labels = set(channel_labels)
+        records = [r for r in records
+                   if getattr(r, 'Tr_Name', None) in channel_labels]
 
     originalname = os.path.splitext(os.path.basename(file_path))[0]
     written = []
