@@ -380,6 +380,15 @@ class abrseries(sortedseries):
         # Kirupa's method; following flowchart, updated 4/23/2019:
         # 1. Retrieve corrcoef and level arrays
         cc, level = self.get_corrcoefs()
+        if cc.size == 0:
+            self.threshold = None
+            self.thresholdSource = ThrSource.NoThr
+            self.thresholdEstimationFailed = True
+            self._p2Result = None
+            self._sigResult = None
+            self._bestFit = None
+            self._bestFitType = None
+            return
 
 #       Smoothing removed 4/23
 #        cc_smooth = smooth(cc, 3)
