@@ -20,7 +20,7 @@ from source_files import SOURCE_WILDCARD, find_source_files, is_source_file
 def bulk_analyze_files(paths, thresholds=True, peaks=True, conflict_handler=None):
     paths = sorted(set(paths))
     if not paths:
-        raise ValueError('No ABR files selected.')
+        raise ValueError('No source data files selected.')
 
     result = {'saved': 0, 'skipped': 0, 'stopped': False, 'errors': []}
     apply_action = None
@@ -140,7 +140,7 @@ class BulkAnalyzeDialog(DialogBase):
         analyze.Bind(wx.EVT_BUTTON, self.on_analyze)
 
     def on_add_folder(self, evt):
-        dlg = wx.DirDialog(self, 'Choose a folder containing ABR files:',
+        dlg = wx.DirDialog(self, 'Choose a folder containing source data files:',
                            defaultPath=self.default_folder,
                            style=wx.DD_DIR_MUST_EXIST | wx.DD_CHANGE_DIR)
         try:
@@ -154,7 +154,7 @@ class BulkAnalyzeDialog(DialogBase):
     def on_add_files(self, evt):
         dlg = wx.FileDialog(
             self,
-            'Choose ABR files:',
+            'Choose source data files:',
             wildcard=SOURCE_WILDCARD,
             style=wx.FD_OPEN | wx.FD_MULTIPLE | wx.FD_FILE_MUST_EXIST,
         )

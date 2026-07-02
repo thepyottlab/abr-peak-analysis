@@ -2,6 +2,7 @@ import os
 
 
 SOURCE_WILDCARD = (
+    'Source data files|ABR-*-*;VsEP-*-*;*.anx;*.txt;*.csv;*.tsv|'
     'ABR files|ABR-*-*|VsEP files|VsEP-*-*|ANECS files|*.anx|'
     'Text files|*.txt|CSV files|*.csv|TSV files|*.tsv|All files|*'
 )
