@@ -1,4 +1,7 @@
 #!/bin/bash
+set -e
+
+cd "$(dirname "$0")"
 
 NAME="EPL ABR Analysis"
 APPNAME="$NAME.app"
@@ -7,27 +10,23 @@ VER="1.11.1"
 if [[ "$1" != "-package" && "$1" != "-dmg" ]]; then
     echo "Building app..."
 #    pythonw setup.py py2app -S
-    pyinstaller --noconfirm notebook_mac.spec
-    
-    echo "Moving misplaced libraries..."
-#    mv "dist/$APPNAME/Contents/Frameworks/libwx"* "dist/$APPNAME/Contents/Resources/lib/python3.7/lib-dynload/wx"
-    
-    echo "Copying help folder..."
-    cp -r help "dist/$APPNAME/Contents/Resources/help"
+    python -m PyInstaller --noconfirm notebook_mac.spec
     
     echo "Deleting build folder..."
-    rm -r build
+    rm -rf build
 fi
 
 if [ "$1" == "-build" ]; then
     echo "Skipping package builds."
     echo "Done."
-    exit 1
+    exit 0
 fi
 
 if [ "$1" != "-dmg" ]; then
     echo "Building packages..."
+    rm -rf /tmp/PkgRoot
     echo "Copying app to tmp..."
+    mkdir -p "/tmp/PkgRoot/Applications/EPL"
     ditto "dist/$APPNAME" "/tmp/PkgRoot/Applications/EPL/$APPNAME"
     
     echo "Building package installer..."
@@ -40,10 +39,11 @@ fi
 if [ "$1" != "-package" ]; then   
     echo "Remove folder"
     cd dist
-    rm -r "$NAME"
+    rm -rf "$NAME"
     cd ..
     
     echo "Rename dist folder..."
+    rm -rf "$NAME $VER" "$NAME $VER.dmg"
     mv dist "$NAME $VER"
     
     echo "Create dmg..."

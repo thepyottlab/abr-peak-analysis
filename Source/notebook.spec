@@ -1,15 +1,19 @@
 # -*- mode: python -*-
 
+import os
+
 block_cipher = None
+HERE = os.path.abspath(SPECPATH)
 
 
 a = Analysis(['notebook.py'],
-             pathex=['D:\\Development\\ABR Peak Analysis\\Source'],
+             pathex=[HERE, os.path.join(HERE, 'kpy')],
              binaries=[],
              datas=[('splash.png', '.'),
                     ('icon.ico', '.'),
                     ('help', 'help')],
-             hiddenimports=[],
+             hiddenimports=['kpy', 'kpy.optimize', 'kpy.optimize.logistic',
+                            'kpy.optimize.power2', 'kpy.optimize.sigmoid'],
              hookspath=[],
              runtime_hooks=[],
              excludes=['alabaster', 

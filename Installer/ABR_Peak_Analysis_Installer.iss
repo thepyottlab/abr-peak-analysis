@@ -20,7 +20,7 @@
 AppName={#appName}
 AppVerName={#appName} V{#SemanticVersion}
 DefaultDirName={pf}\EPL\{#appName}
-OutputDir=D:\Development\abr-peak-analysis\Installer\Output
+OutputDir=Output
 DefaultGroupName=EPL
 AllowNoIcons=yes
 OutputBaseFilename={#installerName}

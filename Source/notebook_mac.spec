@@ -1,14 +1,16 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+import os
+
+HERE = os.path.abspath(SPECPATH)
 
 a = Analysis(
     ['notebook.py'],
-    pathex=[],
+    pathex=[HERE, os.path.join(HERE, 'kpy')],
     binaries=[],
     datas=[('splash.png', '.'),
        ('icon.ico', '.'),
-       ('help', 'help'),
-       ('kpy/kpy', 'kpy')],
+       ('help', 'help')],
     hiddenimports=['kpy', 'kpy.optimize', 'kpy.optimize.logistic', 'kpy.optimize.power2', 'kpy.optimize.sigmoid'],
     hookspath=[],
     hooksconfig={},

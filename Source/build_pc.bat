@@ -1,6 +1,19 @@
-:: C:\ProgramData\miniforge3\condabin\activate.bat
-:: C:\Users\kehan\miniforge3\condabin\activate.bat
-:: conda activate abr
-pyinstaller --noconfirm notebook.spec
-"D:\Development\3rd Party\verpatch\verpatch.exe" .\dist\notebook\notebook.exe 1.11.1.0 /va
-"C:\Program Files (x86)\Inno Setup 6\Compil32.exe" /cc "D:\Development\abr-peak-analysis\Installer\ABR_Peak_Analysis_Installer.iss"
+@echo off
+setlocal
+cd /d "%~dp0"
+
+python -m PyInstaller --noconfirm notebook.spec || exit /b 1
+
+if not defined VERPATCH set "VERPATCH=verpatch.exe"
+"%VERPATCH%" ".\dist\notebook\notebook.exe" 1.11.1.0 /va || (
+    echo Set VERPATCH to verpatch.exe.
+    exit /b 1
+)
+
+if not defined ISCC if exist "%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe" set "ISCC=%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe"
+if not defined ISCC if exist "%ProgramFiles%\Inno Setup 6\ISCC.exe" set "ISCC=%ProgramFiles%\Inno Setup 6\ISCC.exe"
+if not defined ISCC set "ISCC=ISCC.exe"
+"%ISCC%" "..\Installer\ABR_Peak_Analysis_Installer.iss" || (
+    echo Set ISCC to Inno Setup ISCC.exe.
+    exit /b 1
+)
