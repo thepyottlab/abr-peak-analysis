@@ -1251,7 +1251,6 @@ class PhysiologyOptions(wx.Dialog):
             'showallpol': {'value': False},
             'minlatency': {'value': float(1.5)},
             'baselinewin': {'value': float(0.3)},
-            'extension': {'value': 'txt'},
             'useNoiseFloor': {'value': False},
             'overwriteOnSave': {'value': False},
             'autoRestore': {'value': True},
@@ -1277,7 +1276,6 @@ class PhysiologyOptions(wx.Dialog):
         self.showallpol = self._configured_option('showallpol')
         self.minlatency = self._configured_option('minlatency')
         self.baselinewin = self._configured_option('baselinewin')
-        self.extension = self._configured_option('extension')
         self.useNoiseFloor = self._configured_option('useNoiseFloor')
         self.overwriteOnSave = self._configured_option('overwriteOnSave')
         self.autoRestore = self._configured_option('autoRestore')
@@ -1291,7 +1289,6 @@ class PhysiologyOptions(wx.Dialog):
         minlatency = self.minlatency
         showallpol = self.showallpol
         baselinewin = self.baselinewin
-        extension = self.extension
 
         ftypes = ['None', 'Bessel', 'Butterworth']
         wx.Dialog.__init__(self)
@@ -1391,14 +1388,9 @@ class PhysiologyOptions(wx.Dialog):
             size=(75,-1), validator=MinLatencyValidator())
         psizer.Add(self.blw, 0, wx.ALL, 5)
 
-        # File extension
+        # Saving
         obox = wx.StaticBox(self, wx.ID_ANY, "Saving")
         osizer = wx.StaticBoxSizer(obox, wx.HORIZONTAL)
-        label = wx.StaticText(self, wx.ID_ANY, "File extension:")
-        osizer.Add(label, 0, wx.ALL, 5)
-        self.fileext = wx.TextCtrl(self, wx.ID_ANY, str(extension.value),
-            size=(75,-1))
-        osizer.Add(self.fileext, 0, wx.ALL, 5)
 
         # Use noise floor
         label = wx.StaticText(self, wx.ID_ANY, "Do noise floor analysis:")
@@ -1470,20 +1462,20 @@ class PhysiologyOptions(wx.Dialog):
         sizer.Add(line, 0, wx.GROW, wx.RIGHT|wx.TOP, 5)
 
         #Buttons
-        btnsizer = wx.StdDialogButtonSizer()
-        self.reset = wx.Button(self, wx.ID_ANY, "Reset to Defaults")
-        btnsizer.AddButton(self.reset)
-
+        btnsizer = wx.BoxSizer(wx.HORIZONTAL)
         self.ok = wx.Button(self, wx.ID_OK)
         self.ok.SetDefault()
-        btnsizer.AddButton(self.ok)
+        btnsizer.Add(self.ok, 0, wx.ALL, 5)
 
         self.cancel = wx.Button(self, wx.ID_CANCEL)
-        btnsizer.AddButton(self.cancel)
-        btnsizer.Realize()
+        btnsizer.Add(self.cancel, 0, wx.ALL, 5)
+
+        btnsizer.AddStretchSpacer()
+        self.reset = wx.Button(self, wx.ID_ANY, "Restore Defaults")
+        btnsizer.Add(self.reset, 0, wx.ALL, 5)
 
 #        sizer.Add(btnsizer, 0, wx.ALIGN_CENTER_VERTICAL|wx.ALL, 5)
-        sizer.Add(btnsizer, 0, wx.ALL, 5)
+        sizer.Add(btnsizer, 0, wx.EXPAND|wx.ALL, 5)
         self.SetSizer(sizer)
         sizer.Fit(self)
 
@@ -1497,6 +1489,13 @@ class PhysiologyOptions(wx.Dialog):
         self.ford.Enable(enabled)
 
     def OnResetDefaults(self, evt):
+        if wx.MessageBox(
+                "Restore all settings to defaults?",
+                "Restore Defaults",
+                wx.YES_NO | wx.NO_DEFAULT | wx.ICON_QUESTION,
+                self) != wx.YES:
+            return
+
         defaults = self.defaults
         self.dbb.SetValue(defaults['file']['startdir'])
 
@@ -1513,7 +1512,6 @@ class PhysiologyOptions(wx.Dialog):
         self.cb.SetValue(defaults['showallpol']['value'])
         self.mlb.SetValue(str(defaults['minlatency']['value']))
         self.blw.SetValue(str(defaults['baselinewin']['value']))
-        self.fileext.SetValue(defaults['extension']['value'])
         self.nfcb.SetValue(defaults['useNoiseFloor']['value'])
         self.owcb.SetValue(defaults['overwriteOnSave']['value'])
         self.arcb.SetValue(defaults['autoRestore']['value'])
@@ -1561,8 +1559,6 @@ class PhysiologyOptions(wx.Dialog):
             self.timeRangeMin.UpdateConfig()
             self.timeRangeMax.SetVariables(value=float(self.tmaxb.GetValue()))
             self.timeRangeMax.UpdateConfig()
-            self.extension.SetVariables(value=self.fileext.GetValue())
-            self.extension.UpdateConfig()
             self.useNoiseFloor.SetVariables(value=self.nfcb.GetValue())
             self.useNoiseFloor.UpdateConfig()
             self.overwriteOnSave.SetVariables(value=self.owcb.GetValue())

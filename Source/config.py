@@ -110,8 +110,8 @@ def expected_peak_count():
 def peak_visibility_defaults():
     defaults = {}
     for i in range(1, MAX_PEAKS + 1):
-        defaults['p%d' % i] = True
-        defaults['n%d' % i] = True
+        defaults['p%d' % i] = i <= 5
+        defaults['n%d' % i] = i <= 5
     return defaults
  
 if __name__ == "__main__":

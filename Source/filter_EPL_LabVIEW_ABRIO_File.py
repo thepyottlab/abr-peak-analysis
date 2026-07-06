@@ -6,7 +6,7 @@ from datafile import loadabr
 from datatype import ABRStimPolarity
 import time
 
-from config import DefaultValueHolder, expected_peak_count
+from config import expected_peak_count
 
 abr_re = '^ABR-[0-9]+-[0-9]+(\\.dat)?$'
 abr_processed_re = '^ABR-[0-9]+-[0-9]+(\\.dat)?-analyzed.txt$'
@@ -119,17 +119,13 @@ def save(model):
 
 
 def legacy_analysis_path(model):
-    extension = DefaultValueHolder("PhysiologyNotebook", "extension")
-    extension.SetVariables(value='txt')
-    extension.InitFromConfig()
-
     filename = model.filename
     if model.stimPol == ABRStimPolarity.Condensation:
         filename = filename + '-cond'
     if model.stimPol == ABRStimPolarity.Rarefaction:
         filename = filename + '-rare'
 
-    return filename + '-analyzed.' + extension.value
+    return filename + '-analyzed.txt'
 
 
 def have_stored_analysis(model):

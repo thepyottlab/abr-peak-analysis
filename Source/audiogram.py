@@ -2,7 +2,6 @@
 
 import numpy as np
 
-from config import DefaultValueHolder
 import filter_EPL_LabVIEW_ABRIO_File as peakio
 from filter_EPL_LabVIEW_ABRIO_File import safeopen
 
@@ -42,10 +41,7 @@ class audiogram(object):
         self.fits.append(fit)
         
     def save(self):   
-        extension = DefaultValueHolder("PhysiologyNotebook", "extension")
-        extension.SetVariables(value='txt')
-        extension.InitFromConfig()
-        filename = self.filename + '-audiogram.' + extension.value
+        filename = self.filename + '-audiogram.sqlite'
         #Prepare spreadsheet
         header = 'Freq (kHz)\tThreshold (dB SPL)\n'
         spreadsheet = '\n'.join(['{}\t{}'.format(f,t) for f,t in zip(self.freqs, self.thresholds)])
@@ -55,4 +51,3 @@ class audiogram(object):
         f.close()
     
         return 'Saved audiogram to %s' % filename
-
