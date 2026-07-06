@@ -12,7 +12,7 @@ from source_files import SOURCE_WILDCARD, find_source_files, is_source_file
 SQLITE_PATTERN = '-analyzed.sqlite'
 
 THRESHOLD_FIELDS = ['filename', 'frequency', 'estimation_method', 'threshold']
-PEAK_FIELDS = ['filename', 'level', 'frequency', 'wave_label', 'point_type', 'latency', 'amplitude']
+PEAK_FIELDS = ['filename', 'level', 'frequency', 'wave_label', 'p_amplitude', 'p_latency']
 WAVEFORM_FIELDS = ['filename', 'level', 'frequency', 'filter', 'latency', 'amplitude']
 
 
@@ -51,7 +51,7 @@ def export_sqlite_files(paths, output_folder, thresholds=True, peaks=True, wavef
         rows = []
         for path in paths:
             rows.extend(peak_rows(path))
-        written['peaks'] = _write_csv(output_folder, 'peaks.csv', PEAK_FIELDS, rows, identifier)
+        written['peaks'] = _write_csv(output_folder, 'peaks.csv', peak_fields(rows), rows, identifier)
     if waveforms:
         rows = []
         for path in paths:
@@ -126,14 +126,32 @@ def peak_rows(path):
             JOIN analysis AS a ON a.id = l.analysis_id
             ORDER BY a.filename, a.frequency, l.level, p.wave_label, p.point_type
         ''')
-        result = []
+        result = {}
         for row in rows:
             data = dict(row)
-            if data['latency'] is None or data['latency'] < 0:
-                data['latency'] = None
-                data['amplitude'] = None
-            result.append(data)
-        return result
+            key = (data['filename'], data['level'], data['frequency'], data['wave_label'])
+            point = result.setdefault(key, {
+                'filename': data['filename'],
+                'level': data['level'],
+                'frequency': data['frequency'],
+                'wave_label': data['wave_label'],
+            })
+            prefix = 'p' if data['point_type'] == 'peak' else 'n'
+            latency = data['latency']
+            amplitude = data['amplitude']
+            if latency is None or latency < 0:
+                latency = None
+                amplitude = None
+            point[f'{prefix}_amplitude'] = amplitude
+            point[f'{prefix}_latency'] = latency
+        return list(result.values())
+
+
+def peak_fields(rows):
+    fields = list(PEAK_FIELDS)
+    if any('n_amplitude' in row or 'n_latency' in row for row in rows):
+        fields.extend(['n_amplitude', 'n_latency'])
+    return fields
 
 
 def waveform_rows(path):
