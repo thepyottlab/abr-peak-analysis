@@ -1186,11 +1186,14 @@ class PhysiologyFrame(PersistentFrame):
         dlg = PhysiologyOptions(self, wx.ID_ANY, "Options")
         dlg.CenterOnScreen()
         val = dlg.ShowModal()
-        dlg.Destroy()
         if val == wx.ID_OK:
+            self.foptions.SetVariables(startdir=dlg.file.startdir)
+            if self.__filetree.root != dlg.file.startdir:
+                self.__filetree.root = dlg.file.startdir
             for page in self.__nb:
                 if hasattr(page, 'presenter'):
                     page.presenter._plotupdate = True
+        dlg.Destroy()
 
 #        evt.Skip()
 #
@@ -1239,63 +1242,49 @@ class PhysiologyFrame(PersistentFrame):
 
 class PhysiologyOptions(wx.Dialog):
 
+    @staticmethod
+    def _option_defaults():
+        return {
+            'filter': {'ftype': 'Butterworth', 'fl': 10000, 'fh': 200, 'N': 1},
+            'file': {'startdir': '.'},
+            'iofilter': {'method': 'database'},
+            'showallpol': {'value': False},
+            'minlatency': {'value': float(1.5)},
+            'baselinewin': {'value': float(0.3)},
+            'extension': {'value': 'txt'},
+            'useNoiseFloor': {'value': False},
+            'overwriteOnSave': {'value': False},
+            'autoRestore': {'value': True},
+            'timeRangeMin': {'value': float(0)},
+            'timeRangeMax': {'value': float(0)},
+            'expectedPeaks': {'value': 5},
+            'peakVisibility': peak_visibility_defaults(),
+        }
+
+    def _configured_option(self, name):
+        option = DefaultValueHolder('PhysiologyNotebook', name)
+        option.SetVariables(self.defaults[name])
+        option.InitFromConfig()
+        return option
+
     def __init__(self, parent, id, title, size=wx.DefaultSize,
             pos=wx.DefaultPosition, style=wx.DEFAULT_DIALOG_STYLE):
 
-        self.filter = DefaultValueHolder('PhysiologyNotebook','filter')
-        self.filter.SetVariables(ftype='Butterworth', fl=10000, fh=200, N=1)
-        self.filter.InitFromConfig()
-        self.file = DefaultValueHolder('PhysiologyNotebook','file')
-        self.file.SetVariables(startdir='.')
-        self.file.InitFromConfig()
-
-        self.iofilter = DefaultValueHolder('PhysiologyNotebook','iofilter')
-        self.iofilter.SetVariables(method='database')
-        self.iofilter.InitFromConfig()
-
-        self.showallpol = DefaultValueHolder('PhysiologyNotebook','showallpol')
-        self.showallpol.SetVariables(value=False)
-        self.showallpol.InitFromConfig()
-
-        self.minlatency = DefaultValueHolder('PhysiologyNotebook','minlatency')
-        self.minlatency.SetVariables(value=float(1.5))
-        self.minlatency.InitFromConfig()
-
-        self.baselinewin = DefaultValueHolder('PhysiologyNotebook','baselinewin')
-        self.baselinewin.SetVariables(value=float(0.3))
-        self.baselinewin.InitFromConfig()
-
-        self.extension = DefaultValueHolder('PhysiologyNotebook','extension')
-        self.extension.SetVariables(value='txt')
-        self.extension.InitFromConfig()
-
-        self.useNoiseFloor = DefaultValueHolder('PhysiologyNotebook','useNoiseFloor')
-        self.useNoiseFloor.SetVariables(value=False)
-        self.useNoiseFloor.InitFromConfig()
-
-        self.overwriteOnSave = DefaultValueHolder('PhysiologyNotebook', 'overwriteOnSave')
-        self.overwriteOnSave.SetVariables(value=False)
-        self.overwriteOnSave.InitFromConfig()
-
-        self.autoRestore = DefaultValueHolder('PhysiologyNotebook','autoRestore')
-        self.autoRestore.SetVariables(value=True)
-        self.autoRestore.InitFromConfig()
-
-        self.timeRangeMin = DefaultValueHolder('PhysiologyNotebook', 'timeRangeMin')
-        self.timeRangeMin.SetVariables(value=float(0))
-        self.timeRangeMin.InitFromConfig()
-
-        self.timeRangeMax = DefaultValueHolder('PhysiologyNotebook', 'timeRangeMax')
-        self.timeRangeMax.SetVariables(value=float(0))
-        self.timeRangeMax.InitFromConfig()
-
-        self.expectedPeaks = DefaultValueHolder('PhysiologyNotebook', 'expectedPeaks')
-        self.expectedPeaks.SetVariables(value=5)
-        self.expectedPeaks.InitFromConfig()
-
-        self.peakVisibility = DefaultValueHolder('PhysiologyNotebook', 'peakVisibility')
-        self.peakVisibility.SetVariables(peak_visibility_defaults())
-        self.peakVisibility.InitFromConfig()
+        self.defaults = self._option_defaults()
+        self.filter = self._configured_option('filter')
+        self.file = self._configured_option('file')
+        self.iofilter = self._configured_option('iofilter')
+        self.showallpol = self._configured_option('showallpol')
+        self.minlatency = self._configured_option('minlatency')
+        self.baselinewin = self._configured_option('baselinewin')
+        self.extension = self._configured_option('extension')
+        self.useNoiseFloor = self._configured_option('useNoiseFloor')
+        self.overwriteOnSave = self._configured_option('overwriteOnSave')
+        self.autoRestore = self._configured_option('autoRestore')
+        self.timeRangeMin = self._configured_option('timeRangeMin')
+        self.timeRangeMax = self._configured_option('timeRangeMax')
+        self.expectedPeaks = self._configured_option('expectedPeaks')
+        self.peakVisibility = self._configured_option('peakVisibility')
 
         filter = self.filter
         file = self.file
@@ -1360,10 +1349,7 @@ class PhysiologyOptions(wx.Dialog):
         box.Add(self.ford_info, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
         self.ford.Bind(wx.EVT_TEXT, self.OnOrderChanged)
 
-        if filter.ftype == 'None':
-            self.fh.Disable()
-            self.fl.Disable()
-            self.ford.Disable()
+        self._set_filter_enabled(filter.ftype)
 
         # Custom Tmin
         wbox = wx.StaticBox(self, wx.ID_ANY, "Waveform Window")
@@ -1485,6 +1471,9 @@ class PhysiologyOptions(wx.Dialog):
 
         #Buttons
         btnsizer = wx.StdDialogButtonSizer()
+        self.reset = wx.Button(self, wx.ID_ANY, "Reset to Defaults")
+        btnsizer.AddButton(self.reset)
+
         self.ok = wx.Button(self, wx.ID_OK)
         self.ok.SetDefault()
         btnsizer.AddButton(self.ok)
@@ -1498,7 +1487,49 @@ class PhysiologyOptions(wx.Dialog):
         self.SetSizer(sizer)
         sizer.Fit(self)
 
+        self.reset.Bind(wx.EVT_BUTTON, self.OnResetDefaults)
         self.ok.Bind(wx.EVT_BUTTON, self.OnOk)
+
+    def _set_filter_enabled(self, ftype):
+        enabled = ftype != 'None'
+        self.fh.Enable(enabled)
+        self.fl.Enable(enabled)
+        self.ford.Enable(enabled)
+
+    def OnResetDefaults(self, evt):
+        defaults = self.defaults
+        self.dbb.SetValue(defaults['file']['startdir'])
+
+        filter = defaults['filter']
+        self.ftype.SetStringSelection(filter['ftype'])
+        self.fl.SetValue(str(filter['fl']))
+        self.fh.SetValue(str(filter['fh']))
+        self.ford.SetValue(str(filter['N']))
+        self._set_filter_enabled(filter['ftype'])
+        self.ford_info.SetLabel(self._get_rolloff_label(filter['N'], filter['ftype']))
+
+        self.tminb.SetValue(str(defaults['timeRangeMin']['value']))
+        self.tmaxb.SetValue(str(defaults['timeRangeMax']['value']))
+        self.cb.SetValue(defaults['showallpol']['value'])
+        self.mlb.SetValue(str(defaults['minlatency']['value']))
+        self.blw.SetValue(str(defaults['baselinewin']['value']))
+        self.fileext.SetValue(defaults['extension']['value'])
+        self.nfcb.SetValue(defaults['useNoiseFloor']['value'])
+        self.owcb.SetValue(defaults['overwriteOnSave']['value'])
+        self.arcb.SetValue(defaults['autoRestore']['value'])
+        self.expectedPeakChoice.SetSelection(defaults['expectedPeaks']['value'] - 1)
+
+        visibility = defaults['peakVisibility']
+        for prefix, cbs in (('p', self.pcbs), ('n', self.ncbs)):
+            for i, cb in enumerate(cbs):
+                cb.SetValue(visibility['%s%d' % (prefix, i + 1)])
+
+        if hasattr(self, 'dbb_color'):
+            self.dbb.SetBackgroundColour(self.dbb_color)
+        if hasattr(self, 'txtctrl_color'):
+            self.fl.SetBackgroundColour(self.txtctrl_color)
+            self.fh.SetBackgroundColour(self.txtctrl_color)
+        self.Refresh()
 
     def OnStimPolCheck(self, evt):
         self.showallpol = self.cb.GetValue()
@@ -1601,15 +1632,7 @@ class PhysiologyOptions(wx.Dialog):
 
     def ftype_choice(self, evt):
         ftype = evt.GetString()
-        if ftype == 'None':
-            self.fh.Disable()
-            self.fl.Disable()
-            self.ford.Disable()
-        else:
-            self.fh.Enable()
-            self.fl.Enable()
-            self.ford.Enable()
-
+        self._set_filter_enabled(ftype)
         self.ford_info.SetLabel(self._get_rolloff_label(self.ford.GetValue(), ftype))
 
     def _get_rolloff_label(self, N, ftype=None):
