@@ -7,6 +7,7 @@ Modified: Wed 13 Feb 2008 02:47:16 PM
 """
 
 import wx
+import matplotlib.ticker as ticker
 from abrpanel import WaveformPlot 
 from abrpanel import PointPlot
 from peakdetect import find_np
@@ -59,6 +60,24 @@ class WaveformPresenter(object):
                 if indices[k, j] >= 0:
                     w.saved_points[(point_type, j+1)] = int(indices[k, j])
 
+    @staticmethod
+    def _configure_time_axis(axis, add_gridlines=False):
+        axis.xaxis.set_major_locator(ticker.MultipleLocator(1.0))
+        axis.xaxis.set_minor_locator(ticker.MultipleLocator(0.5))
+        axis.xaxis.set_minor_formatter(ticker.NullFormatter())
+        axis.tick_params(axis='x', which='minor', length=0)
+        axis.xaxis.grid(False, which='both')
+        axis.yaxis.grid(False, which='both')
+        if add_gridlines:
+            axis.xaxis.grid(True, which='major', color='0.85', linewidth=0.8)
+            axis.xaxis.grid(True, which='minor', color='0.92', linewidth=0.5)
+
+    def _add_gridlines(self):
+        plotting = DefaultValueHolder("PhysiologyNotebook", "plotting")
+        plotting.SetVariables(addGridlines=True)
+        plotting.InitFromConfig()
+        return plotting.addGridlines
+
     def load(self, model, options=None):
         self.options = options
         self.model = model
@@ -77,6 +96,7 @@ class WaveformPresenter(object):
         elif self.model.dataType == ABRDataType.CFTS:
             xMax = self.model.Tmax
         self.view.subplot.axis(xmax=xMax)
+        self._configure_time_axis(self.view.subplot, self._add_gridlines())
         self.current = len(self.model.series)-1
         self.update_labels()
 
@@ -177,6 +197,7 @@ class WaveformPresenter(object):
                 xMax = self.model.Tmax
                 
             self.view.subplot.axis(xmax=xMax)
+            self._configure_time_axis(self.view.subplot, self._add_gridlines())
             if self.ann != None:
                 self.ann.remove()
                 self.ann = None

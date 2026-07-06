@@ -98,8 +98,8 @@ class PointPlot(StylePlot):
             'markeredgecolor':  '#CC3311'
         }
 
-    COLORS = ['#4477AA', '#66CCEE', '#228833', '#CCBB44', '#EE6677', '#BBBBBB']
-    DARK_COLORS = ['#BBCCEE', '#CCEEFF', '#CCDDAA', '#EEEEBB', '#FFCCCC', '#DDDDDD']
+    COLORS = ['#4477AA', '#CCBB44', '#66CCEE', '#228833', '#EE6677', '#BBBBBB']
+    DARK_COLORS = ['#BBCCEE', '#EEEEBB', '#CCEEFF', '#CCDDAA', '#FFCCCC', '#DDDDDD']
 
     def __init__(self, parent, figure, point):
         self.figure = figure

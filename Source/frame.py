@@ -1258,6 +1258,7 @@ class PhysiologyOptions(wx.Dialog):
             'timeRangeMax': {'value': float(0)},
             'expectedPeaks': {'value': 5},
             'peakVisibility': peak_visibility_defaults(),
+            'plotting': {'addGridlines': True},
         }
 
     def _configured_option(self, name):
@@ -1283,6 +1284,7 @@ class PhysiologyOptions(wx.Dialog):
         self.timeRangeMax = self._configured_option('timeRangeMax')
         self.expectedPeaks = self._configured_option('expectedPeaks')
         self.peakVisibility = self._configured_option('peakVisibility')
+        self.plotting = self._configured_option('plotting')
 
         filter = self.filter
         file = self.file
@@ -1416,6 +1418,15 @@ class PhysiologyOptions(wx.Dialog):
         self.arcb.Bind(wx.EVT_CHOICE, self.OnAutoRestoreCheck)
         osizer.Add(self.arcb, 0, wx.ALL, 5)
 
+        # Plotting
+        gbox = wx.StaticBox(self, wx.ID_ANY, "Plotting")
+        gsizer = wx.StaticBoxSizer(gbox, wx.HORIZONTAL)
+        label = wx.StaticText(self, wx.ID_ANY, "Add gridlines:")
+        gsizer.Add(label, 0, wx.ALL, 5)
+        self.gridcb = wx.CheckBox(self, wx.ID_ANY)
+        self.gridcb.SetValue(self.plotting.addGridlines)
+        gsizer.Add(self.gridcb, 0, wx.ALL, 5)
+
         # Peak display filtering
         vbox = wx.StaticBox(self, wx.ID_ANY, "Peak Display")
         vsizer = wx.StaticBoxSizer(vbox, wx.VERTICAL)
@@ -1458,6 +1469,7 @@ class PhysiologyOptions(wx.Dialog):
         sizer.Add(wsizer, 0, wx.EXPAND|wx.ALL, 5)
         sizer.Add(psizer, 0, wx.EXPAND|wx.ALL, 5)
         sizer.Add(osizer, 0, wx.EXPAND|wx.ALL, 5)
+        sizer.Add(gsizer, 0, wx.EXPAND|wx.ALL, 5)
         sizer.Add(vsizer, 0, wx.EXPAND|wx.ALL, 5)
         sizer.Add(line, 0, wx.GROW, wx.RIGHT|wx.TOP, 5)
 
@@ -1515,6 +1527,7 @@ class PhysiologyOptions(wx.Dialog):
         self.nfcb.SetValue(defaults['useNoiseFloor']['value'])
         self.owcb.SetValue(defaults['overwriteOnSave']['value'])
         self.arcb.SetValue(defaults['autoRestore']['value'])
+        self.gridcb.SetValue(defaults['plotting']['addGridlines'])
         self.expectedPeakChoice.SetSelection(defaults['expectedPeaks']['value'] - 1)
 
         visibility = defaults['peakVisibility']
@@ -1565,6 +1578,8 @@ class PhysiologyOptions(wx.Dialog):
             self.overwriteOnSave.UpdateConfig()
             self.autoRestore.SetVariables(value=self.arcb.GetValue())
             self.autoRestore.UpdateConfig()
+            self.plotting.SetVariables(addGridlines=self.gridcb.GetValue())
+            self.plotting.UpdateConfig()
             self.expectedPeaks.SetVariables(value=int(self.expectedPeakChoice.GetStringSelection()))
             self.expectedPeaks.UpdateConfig()
             self.peakVisibility.SetVariables({
