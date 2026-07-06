@@ -291,6 +291,13 @@ class WaveformPresenter(object):
         return None
 
     def set_toggle(self, value):
+        if value is None:
+            if self.toggle is not None:
+                self.iterator = None
+                self.plots[self.current].toggle = None
+                del self._toggle[self.current]
+                self._redrawflag = True
+            return
         if value == self.toggle: pass
         elif value not in self.model.series[self.current].points: pass
         else:

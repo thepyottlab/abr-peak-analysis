@@ -93,18 +93,13 @@ class PointPlot(StylePlot):
         }
 
     TOGGLE = {
-            'linestyle':        ' ',
-            'marker':           's',
             'zorder':           100,
-            'alpha':            1,
-            'markersize':       8,
-            'markeredgewidth':  1,
             'markerfacecolor':  (1,1,1),
-            'markeredgecolor':  (0,0,0)
+            'markeredgecolor':  '#CC3311'
         }
 
-    COLORS = [(1,0,0), (1,1,0), (0,1,0), (0,1,1), (0,0,1), (1,0,1)]
-    DARK_COLORS = [(1,0.6,0.6), (1,1,0.6), (0.6,1,0.6), (0.6,1,1), (0.6,0.6,1), (1,0.6,1)]
+    COLORS = ['#4477AA', '#66CCEE', '#228833', '#CCBB44', '#EE6677', '#BBBBBB']
+    DARK_COLORS = ['#BBCCEE', '#CCEEFF', '#CCDDAA', '#EEEEBB', '#FFCCCC', '#DDDDDD']
 
     def __init__(self, parent, figure, point):
         self.figure = figure
@@ -125,7 +120,11 @@ class PointPlot(StylePlot):
                 self.parent.waveform.y) or self.parent.waveform.threshold == Th.SUB:
             style = StylePlot.HIDDEN
         elif self.current and self.parent.current:
-            style = dict(PointPlot.TOGGLE)
+            if self.point.point[0] == Point.PEAK:
+                style = dict(PointPlot.PEAK)
+            else:
+                style = dict(PointPlot.VALLEY)
+            style.update(PointPlot.TOGGLE)
         elif self.point.point[0] == Point.PEAK:
             pv = DefaultValueHolder('PhysiologyNotebook', 'peakVisibility')
             pv.SetVariables(peak_visibility_defaults())
@@ -243,6 +242,12 @@ class WaveformPlot(StylePlot):
                 return WaveformPlot.PLOT
 
     def set_toggle(self, point):
+        if point is None:
+            if self.toggle is not None:
+                if self._toggle in self.points:
+                    self.points[self._toggle].current = False
+                self._toggle = None
+            return
         if point is not None:
             key = (point[0],point[1])
             if self.toggle is not None:

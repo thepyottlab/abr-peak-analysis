@@ -69,6 +69,14 @@ class KeyInteractor(object):
 
 class WaveformInteractor(KeyInteractor):
 
+    def Install(self, presenter, view):
+        super(WaveformInteractor, self).Install(presenter, view)
+        self.view.canvas.Bind(wx.EVT_LEFT_DOWN, self._leftdown)
+
+    def _leftdown(self, evt):
+        self.presenter.toggle = None
+        evt.Skip()
+
     def kd_up(self, evt):
         self.presenter.current += 1
 
