@@ -5,6 +5,11 @@ from matplotlib.figure import Figure
 
 import warnings; warnings.simplefilter('ignore', DeprecationWarning)
 
+def _open_files(data):
+    if data['has_children']:
+        return []
+    return [data['data_string']]
+
 class LazyTree(wx.TreeCtrl):
 
     def __init__(self, parent, io, id=wx.ID_ANY, pos=wx.DefaultPosition, 
@@ -15,6 +20,7 @@ class LazyTree(wx.TreeCtrl):
                      | wx.TR_MULTIPLE
                      | wx.TR_HAS_BUTTONS,
             root=None,
+            open_callback=None,
              **kwargs):
 
         wx.TreeCtrl.__init__(self, parent, id, pos, size, style, **kwargs) 
@@ -39,8 +45,10 @@ class LazyTree(wx.TreeCtrl):
         self.Bind(wx.EVT_TREE_ITEM_COLLAPSING, self.on_collapse)
         self.Bind(wx.EVT_TREE_ITEM_EXPANDING, self.on_expand)
         self.Bind(wx.EVT_TREE_BEGIN_DRAG, self.start_drag)
+        self.Bind(wx.EVT_TREE_ITEM_ACTIVATED, self.open_item)
 
         self._io = io
+        self._open_callback = open_callback
         self.root = root
         #self.buildtree()
 
@@ -69,6 +77,19 @@ class LazyTree(wx.TreeCtrl):
         dropsource = wx.DropSource(self)
         dropsource.SetData(dataobject)
         dropsource.DoDragDrop(True)
+
+    def open_item(self, event):
+        item_id = event.GetItem()
+        if not item_id.IsOk() or self._open_callback is None:
+            event.Skip()
+            return
+
+        files = _open_files(self.GetItemData(item_id))
+        if not files:
+            event.Skip()
+            return
+
+        self._open_callback(files)
 
     def set_root(self, root):
         self._root = root

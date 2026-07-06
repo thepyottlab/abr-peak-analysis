@@ -1087,7 +1087,8 @@ class PhysiologyFrame(PersistentFrame):
         os.chdir(rootpath)
 #        rootpath = os.getcwd()
 
-        self.__filetree = LazyTree(self, io=peakio, root=rootpath)
+        self.__filetree = LazyTree(self, io=peakio, root=rootpath,
+                                   open_callback=self.__nb.load)
 
         self.__mgr.AddPane(self.__nb, wx.aui.AuiPaneInfo().
                 Name('notebook').Center().CloseButton(False).
