@@ -389,7 +389,7 @@ def main(file_path, output_folder=None, channel_labels=None, template_rows=None,
     for record in records:
 
         _, time = record_datetime_parts(record)
-        time_str = time.strftime('%I-%M-%S-%p')
+        time_str = time.strftime('%H-%M-%S')
         recordname = f"{originalname}_{time_str}_{filename_part(record.Tr_Name)}"
         print(f"Converting {recordname} to a .tsv ABR file")
 
