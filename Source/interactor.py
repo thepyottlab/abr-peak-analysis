@@ -86,14 +86,14 @@ class WaveformInteractor(KeyInteractor):
 
     def kd_left(self, evt):
         if evt.ShiftDown():
-            move = ('index', -5)
+            move = ('index', -1)
         else:
             move = ('zc', -1)
         self.presenter.move(move)    
 
     def kd_right(self, evt):
         if evt.ShiftDown():
-            move = ('index', 5)
+            move = ('index', 1)
         else:
             move = ('zc', 1)
         self.presenter.move(move)    
