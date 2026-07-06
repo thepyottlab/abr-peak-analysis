@@ -45,14 +45,33 @@ def get_stim_freq(fname):
         return 0
 
 
+def _format_window_bound(value):
+    return '""' if value == '' else str(value)
+
+
 def apply_time_range(waveforms, t_min, t_max, fs):
     """Crop waveforms to [t_min, t_max] ms and remap time to start at 0."""
+    requested_min, requested_max = t_min, t_max
+    t_min = float(t_min or 0)
+    t_max = float(t_max or 0)
     if t_min <= 0 and t_max <= 0:
         return waveforms, None
     i_min = int(round(t_min * fs / 1000)) if t_min > 0 else 0
+    i_max = int(round(t_max * fs / 1000)) if t_max > 0 else None
+    if waveforms:
+        file_len = min(len(w.y) for w in waveforms)
+        file_max = file_len * 1000.0 / fs
+        if i_min >= file_len or (i_max is not None and i_max <= i_min):
+            msg = (
+                "Waveform window is set to %s to %s ms, but this file spans "
+                "0 to %g ms. Modify the waveform window settings."
+            ) % (_format_window_bound(requested_min),
+                 _format_window_bound(requested_max),
+                 file_max)
+            print(msg)
+            raise IOError(msg)
     for w in waveforms:
-        i_max = int(round(t_max * fs / 1000)) if t_max > 0 else len(w.y)
-        w.y = w.y[i_min:i_max]
+        w.y = w.y[i_min:i_max if i_max is not None else len(w.y)]
         w.x = numpy.arange(len(w.y)) * 1000.0 / w.fs
     new_window = len(waveforms[0].y) * 1000.0 / fs if waveforms else None
     return waveforms, new_window
@@ -748,4 +767,3 @@ def load_anecs_file(fname, invert=False, filter=False, fdict=None, t_min = 0, t_
     except (AttributeError, ValueError):
         msg = 'Could not parse %s.  Most likely not a valid ANECS data file.' % fname
         raise IOError(msg)
-

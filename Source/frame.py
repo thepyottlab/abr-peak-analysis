@@ -1256,11 +1256,15 @@ class PhysiologyOptions(wx.Dialog):
             'overwriteOnSave': {'value': False},
             'autoRestore': {'value': True},
             'timeRangeMin': {'value': float(0)},
-            'timeRangeMax': {'value': float(0)},
+            'timeRangeMax': {'value': ''},
             'expectedPeaks': {'value': 5},
             'peakVisibility': peak_visibility_defaults(),
             'plotting': {'addGridlines': True},
         }
+
+    @staticmethod
+    def _optional_float(value, default):
+        return default if value == '' else float(value)
 
     def _configured_option(self, name):
         option = DefaultValueHolder('PhysiologyNotebook', name)
@@ -1569,9 +1573,11 @@ class PhysiologyOptions(wx.Dialog):
             self.minlatency.UpdateConfig()
             self.baselinewin.SetVariables(value=float(self.blw.GetValue()))
             self.baselinewin.UpdateConfig()
-            self.timeRangeMin.SetVariables(value=float(self.tminb.GetValue()))
+            self.timeRangeMin.SetVariables(
+                value=self._optional_float(self.tminb.GetValue(), 0.0))
             self.timeRangeMin.UpdateConfig()
-            self.timeRangeMax.SetVariables(value=float(self.tmaxb.GetValue()))
+            self.timeRangeMax.SetVariables(
+                value=self._optional_float(self.tmaxb.GetValue(), ''))
             self.timeRangeMax.UpdateConfig()
             self.useNoiseFloor.SetVariables(value=self.nfcb.GetValue())
             self.useNoiseFloor.UpdateConfig()

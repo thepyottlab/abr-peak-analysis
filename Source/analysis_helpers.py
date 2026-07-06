@@ -18,7 +18,7 @@ def load_model(fname, invert=False, polarity=ABRStimPolarity.Avg, useNoiseFloor=
     time_min.InitFromConfig()
 
     time_max = DefaultValueHolder("PhysiologyNotebook", "timeRangeMax")
-    time_max.SetVariables(value=float(0))
+    time_max.SetVariables(value="")
     time_max.InitFromConfig()
 
     fdict = {'ftype': filt.ftype, 'W': (filt.fh, filt.fl), 'N': filt.N}
