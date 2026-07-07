@@ -23,7 +23,7 @@ The Windows portable version does not require installation or administrator perm
 
 ## Documentation
 
-- [Help / user documentation](https://EPL-Engineering.github.io/abr-peak-analysis/)
+- [Help / user documentation](https://tomnaber.github.io/abr-peak-analysis/)
 - [Changelog](CHANGELOG.md)
 
 ## Running from source

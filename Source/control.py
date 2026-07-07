@@ -10,6 +10,23 @@ def _open_files(data):
         return []
     return [data['data_string']]
 
+def _open_inverts(event=None, drag_result=None):
+    if drag_result == wx.DragCopy:
+        return True
+
+    for source in (event,):
+        if source is None:
+            continue
+        for method in ('CmdDown', 'ControlDown'):
+            if getattr(source, method, lambda: False)():
+                return True
+
+    source = wx.GetMouseState()
+    for method in ('CmdDown', 'ControlDown'):
+        if getattr(source, method, lambda: False)():
+            return True
+    return False
+
 class LazyTree(wx.TreeCtrl):
 
     def __init__(self, parent, io, id=wx.ID_ANY, pos=wx.DefaultPosition, 
@@ -89,7 +106,7 @@ class LazyTree(wx.TreeCtrl):
             event.Skip()
             return
 
-        self._open_callback(files)
+        self._open_callback(files, _open_inverts(event))
 
     def set_root(self, root):
         self._root = root

@@ -5,26 +5,27 @@
 <meta charset="windows-1252" />
 <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<meta name="generator" content="HelpSmith 9.9.1 (Build 24.1211)" />
-<link type="text/css" rel="stylesheet" href="../css/topics/style.css" />
-<script type="text/javascript" src="../js/jquery-3.7.1.min.js"></script>
+<meta name="generator" content="HelpSmith 9.7 (Build 23.607)" />
 <style type="text/css" media="screen">
 html {
-  min-height: 100%;
+  height: 100%;
 }
 body {
-  margin: 0;
+  background-color: #f0f3f7;
+  margin: 12px 0 12px 0;
 }
 </style>
-<script type="text/javascript" src="../js/settings.js?ed92d5a1"></script>
-<script type="text/javascript" src="../js/core.min.js?b628a3f8"></script>
-<script type="text/javascript" src="../js/topic.min.js?b628a3f8"></script>
+<link type="text/css" rel="stylesheet" href="../css/topics/style.css" />
+<script type="text/javascript" src="../js/jquery-3.6.0.min.js"></script>
+<script type="text/javascript" src="../js/settings.js?fc608ba4"></script>
+<script type="text/javascript" src="../js/core.min.js?3e9f1cdf"></script>
+<script type="text/javascript" src="../js/topic.min.js?3e9f1cdf"></script>
 <script type="text/javascript">
 	var topicContext = 20;
 </script>
 <!-- Web Help Topic -->
 </head>
-<body class="page0">
+<body>
 <div>
   <table class="align-c tbl0">
     <tr class="row0">
@@ -63,15 +64,20 @@ body {
               </td>
               <td class="cell2">
                 <p class="ps2"><span class="ts2">&nbsp;</span></p>
+                <p class="ps3"><img width="792" height="199" alt="" src="images/splash_pyottlab.png" /></p>
                 <p class="ps3"><img width="792" height="199" alt="" src="images/splash.png" /></p>
                 <h1 class="hd1"><span class="ts1">Introduction</span></h1>
-                <p class="ps4"><span class="ts3">This program is designed to facilitate the identification of threshold, P1-5 and N1-5 in an ABR waveform series and export this data. The default input/output formats used by the program are designed to work with the custom ABR file format used by the Eaton Peabody Laboratories. It is relatively straightforward to write your own import and export module if needed. Refer to the </span><span class="ts4">peakio.py</span><span class="ts3">&nbsp;file for documentation of what is required. </span></p>
+                <p class="ps4"><span class="ts3">This program is designed to facilitate the identification of threshold, P1-6 and N1-6 in an ABR waveform series and export this data. The default input/output formats used by the program are designed to work with a custom ABR file format used by the Eaton Peabody Laboratories and The Pyott Lab. It is relatively straightforward to write your own import and export module if needed. Refer to the </span><span class="ts4">sample_data/custom_template.tsv</span><span class="ts3">&nbsp; for an example of the target file format. </span></p>
+                <h1 class="hd1"><span class="ts1">Conversion</span></h1>
+                <p class="ps4"><span class="ts3">ABR Peak Analysis supports a number of file types directly. However, some acquisition softwares, such as IHS and Eclipse, store data from many different stimuli or subjects in a single file. The Tools/Convert IHS and Tools/Convert Eclipse modules can be used to convert these files into the supported format. The Eclipse converter additionally allows for unpacking all recordings in a file, or only specific channels. The Eclipse converter additionally contains a separate mode in which a spreadsheet-based template can be filled in to extract only the desired waveforms. This could be helpful when acquisition is done continuously over a longer time period and only certain time periods are of interest. </span></p>
                 <h1 class="hd1"><span class="ts1">Loading Data</span></h1>
-                <p><span class="ts5">Data can be loaded by opening a file directly, dragging it from the sidebar, or dragging its icon from the desktop. If you want to invert the waveform polarity, hold down control while dragging the file. </span></p>
+                <p><span class="ts5">Data can be loaded by opening a file directly, dragging it from the sidebar, dragging its icon from the desktop, or double clicking it in the tree view. To invert waveform polarity on load, hold Command on macOS, or Control on Windows/Linux, while double clicking or dragging the file. This is the same as opening normally and pressing P before other data processing. </span></p>
                 <h1 class="hd1"><span class="ts1">Analysis</span></h1>
-                <p><span class="ts5">On load each waveform is bandpass filtered from 200 to 10,000 Hz to remove baseline shift as well as high frequency noise that interferes with the peak detection algorithm. To minimize phase shift, a first-order Butterworth filter is used to forward and reverse filter the waveform. An initial estimate of P1-5 is computed and presented for correction. It is recommended that you correct the location of P1-5 to your satisfaction before computing N1-5 as the algorithm relies on knowledge of P1-5 to produce the best possible estimate for N1-5. Even if you don't use this program to save threshold, it is important to specify it so that sub-threshold data is marked appropriately in the output file. </span></p>
-                <h1 class="hd1"><span class="ts1">Saving</span></h1>
-                <p><span class="ts5">Aside from bandpass filtering the raw data provided by the import module, no other pre or post-processing is done on the data. Current amplitude and latency of each point is saved, however, if the point is subthreshold (or if no threshold is provided), the latency is reported as a negative number. </span></p>
+                <p><span class="ts5">On load, each waveform is optionally bandpass filtered from 200 to 10,000 Hz to remove baseline shift as well as high frequency noise that interferes with the peak detection algorithm. To minimize phase shift, a Butterworth filter is used to forward and reverse filter the waveform. If a custom waveform window is used, the waveform is cropped to selected values only after filtering to minimize ripples. An initial estimate of selected peaks is computed and presented for correction. It is recommended that you correct the location of the peaks to your satisfaction before computing the troughs, as the algorithm relies on knowledge of the peaks to produce the best possible estimate for the troughs. The Tools/Bulk Analysis module can be used to filter waveforms, determine thresholds, and/or mark peaks on multiple files in bulk. It is still recommended to visually confirm peaks and thresholds after bulk analysis and correct guesses where needed.</span></p>
+                <h1 class="hd1"><span class="ts1">Saving</span></h1> 
+                <p><span class="ts5">Aside from bandpass filtering the raw data provided by the import module and optionally resetting the waveform to custom start and end values, no other pre or post-processing is done on the data. Each analyzed file is stored in an SQLite file containing a table for the (filtered) waveform, (optional) thresholds, and (optional) amplitudes and latencies of selected peaks and troughs. </span></p>
+                <h1 class="hd1"><span class="ts1">Exporting</span></h1>
+                <p><span class="ts5">Analyzed files can be exported as a .csv in a long dataframe format using the Tools/Export module. The export module can also be used to create a dataframe of raw or filtered waveforms.</span></p>
                 <p class="ps2"><span class="ts2">&nbsp;</span></p>
               </td>
               <td class="cell0">
@@ -83,7 +89,7 @@ body {
                 <p>&nbsp;</p>
               </td>
               <td class="cell4">
-                <p class="ps5"><span class="ts6">Copyright &copy; 2025 Eaton-Peabody Laboratories</span></p>
+                <p class="ps5"><span class="ts6">Original work copyright &copy; 2025 Eaton-Peabody Laboratories. Modifications copyright &copy; 2026 Pyott Lab. Licensed under the GNU General Public License.</span></p>
               </td>
               <td class="cell5">
                 <p>&nbsp;</p>

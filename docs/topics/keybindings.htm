@@ -64,10 +64,11 @@ body {
               </td>
               <td class="cell2">
                 <p class="ps2"><span class="ts2">&nbsp;</span></p>
-                <p class="ps6"><span class="ts5">The current waveform is displayed as a thick, black line. Threshold waveform is specified by a dashed line. If a negativity or positivity is selected, it will be indicated by a white symbol. Negativities are indicated by triangles, positivities as squares. Red is P1/N1, yellow is P2/N2, green is P3/N3, light blue is P4/N4, and dark blue is P5/N5.</span></p>
+                <p class="ps6"><span class="ts5">The current waveform is displayed as a thick, black line. Threshold waveforms are shown with a dotted line. If a negativity or positivity is selected, it is shown with a white fill and red outline. Negativities are indicated by triangles, positivities by circles. Peak/notch colors are blue for P1/N1, yellow for P2/N2, light blue for P3/N3, green for P4/N4, pink for P5/N5, and gray for P6/N6 when enabled.</span></p>
                 <p class="ps7"><span class="ts5">The following keybindings are used when processing a waveform series:</span></p>
                 <h3 class="hd2"><span class="ts7">Waveforms</span></h3>
                 <p class="ps8"><span style="font-size: 14pt; line-height: 0; vertical-align: middle; color: Black">&bull;</span><span style="display: inline-block; width: 18px"></span><span class="ts8">Up/Down arrows</span><span class="ts5">&nbsp;&ndash; Select previous/next waveform in the series</span></p>
+                <p class="ps8"><span style="font-size: 14pt; line-height: 0; vertical-align: middle; color: Black">&bull;</span><span style="display: inline-block; width: 18px"></span><span class="ts8">D</span><span class="ts5">&nbsp;&ndash; Delete the current waveform from the series.</span></p>
                 <p class="ps8"><span style="font-size: 14pt; line-height: 0; vertical-align: middle; color: Black">&bull;</span><span style="display: inline-block; width: 18px"></span><span class="ts8">P</span><span class="ts5">&nbsp;&ndash; Toggles waveform polarity. Do this before any other data processing.</span></p>
                 <p class="ps8"><span style="font-size: 14pt; line-height: 0; vertical-align: middle; color: Black">&bull;</span><span style="display: inline-block; width: 18px"></span><span class="ts8">N</span><span class="ts5">&nbsp;&ndash; Toggles normalized view of waveform.</span></p>
                 <p class="ps8"><span style="font-size: 14pt; line-height: 0; vertical-align: middle; color: Black">&bull;</span><span style="display: inline-block; width: 18px"></span><span class="ts8">+/- keys</span><span class="ts5">&nbsp;&ndash; Increases/decreases scaling factor of waveform.</span></p>
@@ -75,8 +76,8 @@ body {
                 <h3 class="hd3"><span class="ts7">Peaks / Notches</span></h3>
                 <p><span class="ts7">&nbsp;</span></p>
                 <p class="ps8"><span style="font-size: 14pt; line-height: 0; vertical-align: middle; color: Black">&bull;</span><span style="display: inline-block; width: 18px"></span><span class="ts8">Right/Left arrows</span><span class="ts5">&nbsp;&ndash; Move a toggled peak left or right along the waveform. Movement of the peak will &quot;snap&quot; to estimated peaks in the waveform. To adjust the peak in fine increments, hold down the </span><span class="ts9">shift</span><span class="ts5">&nbsp;key simultaneously.</span></p>
-                <p class="ps8"><span style="font-size: 14pt; line-height: 0; vertical-align: middle; color: Black">&bull;</span><span style="display: inline-block; width: 18px"></span><span class="ts8">Number keys 1-5</span><span class="ts5">&nbsp;&ndash; Select the corresponding peak on the current waveform. To select N1-5, hold down shift while pressing the corresponding number.</span></p>
-                <p class="ps8"><span style="font-size: 14pt; line-height: 0; vertical-align: middle; color: Black">&bull;</span><span style="display: inline-block; width: 18px"></span><span class="ts8">I</span><span class="ts5">&nbsp;&ndash; Estimates N1-5 for all waveforms. If N1-5 is already estimated, recomputes the estimate.</span></p>
+                <p class="ps8"><span style="font-size: 14pt; line-height: 0; vertical-align: middle; color: Black">&bull;</span><span style="display: inline-block; width: 18px"></span><span class="ts8">Number keys 1-5</span><span class="ts5">&nbsp;&ndash; Select the corresponding peak on the current waveform. Number key 6 is available when enabled in Options. To select N points, hold down shift while pressing the corresponding number.</span></p>
+                <p class="ps8"><span style="font-size: 14pt; line-height: 0; vertical-align: middle; color: Black">&bull;</span><span style="display: inline-block; width: 18px"></span><span class="ts8">I</span><span class="ts5">&nbsp;&ndash; Estimates N points for all waveforms. If N points are already estimated, recomputes the estimate.</span></p>
                 <p class="ps8"><span style="font-size: 14pt; line-height: 0; vertical-align: middle; color: Black">&bull;</span><span style="display: inline-block; width: 18px"></span><span class="ts8">U</span><span class="ts5">&nbsp;&ndash; Updates guess for corresponding P or N of successive waveforms based on position of currently toggled P or N.</span></p>
                 <p><span class="ts5">&nbsp;</span></p>
                 <h3 class="hd3"><span class="ts7">Threshold</span></h3>
@@ -107,7 +108,7 @@ body {
                 <p>&nbsp;</p>
               </td>
               <td class="cell4">
-                <p class="ps5"><span class="ts6">Copyright &copy; 2023 Eaton-Peabody Laboratories</span></p>
+                <p class="ps5"><span class="ts6">Original work copyright &copy; 2025 Eaton-Peabody Laboratories. Modifications copyright &copy; 2026 Pyott Lab. Licensed under the GNU General Public License.</span></p>
               </td>
               <td class="cell5">
                 <p>&nbsp;</p>

@@ -6,8 +6,9 @@ import wx.lib.filebrowsebutton as filebrowse
 import wx.html
 import wx.grid
 import webbrowser
+from pathlib import Path
 
-from control import MatplotlibPanel, LazyTree, MPLAudiogram
+from control import MatplotlibPanel, LazyTree, MPLAudiogram, _open_inverts
 from AudiogramPresenter import AudiogramPresenter
 from WaveformPresenter import WaveformPresenter
 from interactor import KeyInteractor, WaveformInteractor, AudiogramInteractor
@@ -219,16 +220,14 @@ class PhysiologyNbFileDropTarget(wx.FileDropTarget):
     def __init__(self, parent):
         wx.FileDropTarget.__init__(self)
         self.parent = parent
+        self.invert = False
 
     def OnDropFiles(self, x, y, filenames):
-        self.parent.load(filenames, self.invert)
+        self.parent.load(filenames, self.invert or _open_inverts())
         return True
 
     def OnEnter(self, x, y, meta):
-        if meta == wx.DragCopy:
-            self.invert = True
-        else:
-            self.invert = False
+        self.invert = _open_inverts(drag_result=meta)
         return wx.DragMove    
 
 #----------------------------------------------------------------------------
@@ -1115,7 +1114,7 @@ class PhysiologyFrame(PersistentFrame):
     def OnDisplayHelp(self, evt):
         # self.help.DisplayContents()
         # os.startfile(self.helpPath)
-        file_url = f"file://{self.helpPath}"
+        file_url = Path(self.helpPath).resolve().as_uri()
         webbrowser.open(file_url)
 
     def OnCloseTab(self, evt):
