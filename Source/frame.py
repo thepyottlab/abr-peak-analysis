@@ -995,8 +995,12 @@ class PhysiologyFrame(PersistentFrame):
             *args, **kwargs):
 
         if splash:
-            splash = PhysiologySplashScreen(duration=1000)
-            splash.Show()
+            PhysiologySplashScreen(duration=500, filename="splash.png")
+
+            wx.CallLater(
+                600,
+                lambda: PhysiologySplashScreen(duration=500, filename="splash_pyottlab.png")
+            )
 
         PersistentFrame.__init__(self, name, parent, *args, **kwargs)
 
@@ -1767,9 +1771,8 @@ class MinLatencyValidator(PhysiologyValidator):
 
 class PhysiologySplashScreen(wx.adv.SplashScreen):
 
-    def __init__(self, parent=None, duration=3000):
-        # splash_bitmap = os.path.join(os.path.split(sys.argv[0])[0], "splash.png")
-        splash_bitmap = os.path.join(os.path.dirname(__file__), "splash.png")
+    def __init__(self, parent=None, duration=3000, filename="splash.png"):
+        splash_bitmap = os.path.join(os.path.dirname(__file__), filename)
         bitmap = wx.Image(name=splash_bitmap).ConvertToBitmap()
         style = wx.adv.SPLASH_CENTRE_ON_SCREEN | wx.adv.SPLASH_TIMEOUT
         wx.adv.SplashScreen.__init__(self, bitmap, style, duration, parent)

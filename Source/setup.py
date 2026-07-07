@@ -51,7 +51,7 @@ OPTIONS = {
         }
     }
 
-DATA_FILES = ['splash.png']
+DATA_FILES = ['splash.png', 'splash_pyottlab.png']
 
 setup(
     name='EPL ABR Analysis',

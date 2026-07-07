@@ -68,7 +68,7 @@ includes = ['scipy.sparse.csgraph', 'pytz', 'scipy.special._ufuncs_cxx',
             'kpy.optimize']
 
 dataFiles = matplotlib.get_py2exe_datafiles()
-imgFile = '', ['splash.png']
+imgFile = '', ['splash.png', 'splash_pyottlab.png']
 missingDLLs = '', ['C:\Python27\Lib\site-packages\scipy\extra-dll\libwrap_dum.OPZRNAD6J4Q2YSFD3XWUEBCZJT4JBF5T.gfortran-win32.dll',
                    'C:\Python27\Lib\site-packages\scipy\extra-dll\lib_blas_su.UCPLJH7M3TZH6H6SS5P55GCHD6KXRUXA.gfortran-win32.dll',
                    'C:\Python27\Lib\site-packages\scipy\extra-dll\liblbfgsb.URM5MZGPDINSGKTAZDD5UIJSEQWWQWXK.gfortran-win32.dll',

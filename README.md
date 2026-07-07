@@ -1,5 +1,6 @@
 # ABR Peak Analysis
 
+![splash](Source/splash_pyottlab.png)
 ![splash](Source/splash.png)
 
 ABR Peak Analysis is a desktop tool for inspecting auditory brainstem response or VSEP recordings, filtering recordings, marking peaks/troughs, estimating thresholds, and exporting results.

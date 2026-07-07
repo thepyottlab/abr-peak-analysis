@@ -9,6 +9,7 @@ a = Analysis(
     pathex=[HERE, os.path.join(HERE, 'kpy')],
     binaries=[],
     datas=[('splash.png', '.'),
+       ('splash_pyottlab.png', '.'),
        ('icon.ico', '.'),
        ('help', 'help')],
     hiddenimports=['kpy', 'kpy.optimize', 'kpy.optimize.logistic', 'kpy.optimize.power2', 'kpy.optimize.sigmoid'],
