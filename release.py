@@ -11,6 +11,7 @@ To publish a release:
 
 import argparse
 import re
+import shutil
 import subprocess
 import tempfile
 from pathlib import Path
@@ -51,6 +52,21 @@ def run(*args):
     subprocess.run(args, cwd=ROOT, check=True)
 
 
+def gh_command():
+    gh = shutil.which("gh")
+    if gh:
+        return gh
+
+    for path in ("/opt/homebrew/bin/gh", "/usr/local/bin/gh"):
+        if Path(path).is_file():
+            return path
+
+    raise SystemExit(
+        "GitHub CLI `gh` was not found. Install it, run `gh auth login`, "
+        "then rerun `python release.py`."
+    )
+
+
 def clean_worktree():
     subprocess.run(["git", "diff", "--quiet"], cwd=ROOT, check=True)
     subprocess.run(["git", "diff", "--cached", "--quiet"], cwd=ROOT, check=True)
@@ -72,6 +88,7 @@ def main():
 
     assets = expected_assets()
     notes = changelog_notes()
+    gh = gh_command()
     clean_worktree()
 
     if not tag_exists():
@@ -82,7 +99,7 @@ def main():
         notes_file = Path(tmp) / "release-notes.md"
         notes_file.write_text(notes, encoding="utf-8")
 
-        command = ["gh", "release", "create", TAG, "--title", TAG,
+        command = [gh, "release", "create", TAG, "--title", TAG,
                    "--notes-file", str(notes_file)]
         if args.draft:
             command.append("--draft")
