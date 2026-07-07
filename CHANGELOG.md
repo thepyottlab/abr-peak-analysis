@@ -1,4 +1,32 @@
 ## Changelog
+### V2.0.0 (2026-07-07)
+#### Fixed
+- bug in which filter sampling rate was not normalized by Nyquist frequency
+- bug in which saving peaks without thresholds was not permitted
+- bug in which saving thresholds without marking peaks was not permitted
+- development environment installation instructions and kpy dependencies
+
+#### Added
+- simplified custom ABR file format
+- converter for IHS files to the custom ABR file format
+- converter for Eclipse files to the custom ABR file format
+- selectable channels for Eclipse files when unpacking and converting files
+- interactive GUI to fill in template to extract desired recordings from Eclipse files
+- different SQLite saved analysis format, containing datasets for the thresholds, peaks, and (filtered) waveforms
+- bulk analysis tool with GUI to mark peaks, filter, and/or determine thresholds
+- export module to convert peaks, thresholds, and/or (filtered) waveforms of selected files to a .csv in long format
+- input field in options to select filter order with realtime effective filter strength displayed
+- input fields in options to set the waveform start and end values, waveforms get cropped to these values after optional filtering on the entire waveform
+- overwrite on save option
+- plotting gridlines option
+- option to select number of peaks that the peak finder should expect (may be useful for human ABR data in which peak 4 and 5 are merged)
+- option to select which peaks/troughs to show and export
+- support for marking a 6th peak/trough
+- dynamic color of peaks with desaturated and saturated colorblind-friendly colors that change color depending on the saved state of peaks
+- consistent color and shape between selected and unselected peak/trough, with selected peaks/troughs having a white fill and red outline
+- function to deselect a selected peak/trough by clicking anywhere on canvas
+- altered step size of shift + arrows down from stepping in 5 datapoints to 1 datapoint
+- restore defaults option to reset settings
 
 ### v1.11.1 (2026-01-30)
 #### Fixed
