@@ -22,6 +22,7 @@ from Source.version import APP_VERSION
 ROOT = Path(__file__).resolve().parent
 INSTALLERS = ROOT / "Installers"
 TAG = "v%s" % APP_VERSION
+REPO = "TomNaber/abr-peak-analysis"
 
 
 def changelog_notes():
@@ -99,7 +100,7 @@ def main():
         notes_file = Path(tmp) / "release-notes.md"
         notes_file.write_text(notes, encoding="utf-8")
 
-        command = [gh, "release", "create", TAG, "--title", TAG,
+        command = [gh, "release", "create", TAG, "--repo", REPO, "--title", TAG,
                    "--notes-file", str(notes_file)]
         if args.draft:
             command.append("--draft")
