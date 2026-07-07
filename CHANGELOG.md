@@ -26,6 +26,7 @@
 - consistent color and shape between selected and unselected peak/trough, with selected peaks/troughs having a white fill and red outline
 - function to deselect a selected peak/trough by clicking anywhere on canvas
 - altered step size of shift + arrows down from stepping in 5 datapoints to 1 datapoint
+- edit menu items for the shortcuts
 - restore defaults option to reset settings
 
 ### v1.11.1 (2026-01-30)
