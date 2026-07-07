@@ -1013,7 +1013,7 @@ class PhysiologyFrame(PersistentFrame):
         ID_SAVE = wx.NewId()
         file.Append(ID_SET_DIR, 'Open &Directory\tCtrl+D', 'Open Directory') 
         file.Append(wx.ID_OPEN, 'Open &File\tCtrl+F', 'Open File')
-        file.Append(ID_SAVE, '&Save\tCtrl+S', 'Save current analysis')
+        file.Append(ID_SAVE, '&Save\tS', 'Save current analysis')
         file.Append(ID_REFRESH, '&Refresh\tCtrl+R', 'Refresh')
         file.AppendSeparator()
         file.Append(ID_SET_OPTIONS, '&Options\tCtrl+O', 'Options')
@@ -1024,6 +1024,32 @@ class PhysiologyFrame(PersistentFrame):
         file.AppendSeparator()
         file.Append(wx.ID_EXIT, '&Quit\tCtrl+Q', 'Quit Application')
         menubar.Append(file, '&File')
+
+        edit = wx.Menu()
+        edit_ids = {}
+        for label, action, help_text in [
+                ('&Delete waveform\tD', 'delete', 'Delete waveform'),
+                ('Toggle &polarity\tP', 'invert', 'Toggle polarity'),
+                ('Toggle &normalized view\tN', 'toggle_normalized', 'Toggle normalized view'),
+                ('Increase scaling\t+', 'increase_scaling', 'Increase scaling'),
+                ('Decrease scaling\t-', 'decrease_scaling', 'Decrease scaling'),
+                (None, None, None),
+                ('Set threshold manually\tReturn', 'set_threshold', 'Set threshold manually'),
+                ('Estimate &threshold\tT', 'estimate_threshold', 'Estimate threshold'),
+                ('Toggle threshold estimation details\tW', 'toggle_show_work', 'Toggle threshold estimation details'),
+                ('Toggle display input-output plot\tL', 'toggle_show_io', 'Toggle display input-output plot'),
+                (None, None, None),
+                ('Clear analysis\tX', 'clear_analysis', 'Clear analysis'),
+                ('Restore last-saved analysis\tR', 'restore', 'Restore last-saved analysis'),
+                ('Export (filtered) waveforms\tE', 'export_waveforms', 'Export filtered waveforms'),
+        ]:
+            if label is None:
+                edit.AppendSeparator()
+                continue
+            item_id = wx.NewId()
+            edit.Append(item_id, label, help_text)
+            edit_ids[item_id] = action
+        menubar.Append(edit, '&Edit')
 
         ID_CONVERT_IHS = wx.NewId()
         ID_CONVERT_ECLIPSE = wx.NewId()
@@ -1057,6 +1083,8 @@ class PhysiologyFrame(PersistentFrame):
         self.Bind(wx.EVT_MENU, self.OnCloseTab, id=ID_CLOSE_TAB)
         self.Bind(wx.EVT_MENU, self.OnCloseAllBut, id=ID_CLOSE_ALL_BUT)
         self.Bind(wx.EVT_MENU, self.OnCloseAllTabs, id=ID_CLOSE_ALL_TABS)
+        for item_id, action in edit_ids.items():
+            self.Bind(wx.EVT_MENU, lambda evt, action=action: self.OnEditWaveform(evt, action), id=item_id)
         self.Bind(wx.EVT_MENU, self.OnConvertIHS, id=ID_CONVERT_IHS)
         self.Bind(wx.EVT_MENU, self.OnConvertEclipse, id=ID_CONVERT_ECLIPSE)
         self.Bind(wx.EVT_MENU, self.OnBulkAnalyze, id=ID_BULK_ANALYZE)
@@ -1174,6 +1202,43 @@ class PhysiologyFrame(PersistentFrame):
         if bulk_analyze.analyze_with_dialog(self, self.__filetree.root):
             self.OnRefresh()
             self.SetStatusText('Bulk analyze/filter complete.')
+
+    def OnEditWaveform(self, evt, action):
+        if self.__nb.GetPageCount() == 0:
+            self.SetStatusText('No active waveform tab.')
+            return
+
+        page = self.__nb.GetPage(self.__nb.GetSelection())
+        presenter = getattr(page, 'presenter', None)
+        if not isinstance(presenter, WaveformPresenter):
+            self.SetStatusText('Active tab is not a waveform.')
+            return
+
+        if action == 'toggle_normalized':
+            presenter.normalized = not presenter.normalized
+        elif action == 'increase_scaling':
+            presenter.scale += 1
+        elif action == 'decrease_scaling':
+            presenter.scale -= 1
+        elif action == 'restore':
+            dlg = wx.MessageDialog(None, 'Restoring the previous analysis will lose the current work on this data set.\nContinue?',
+                  'Question', wx.YES_NO | wx.NO_DEFAULT | wx.ICON_QUESTION)
+            if dlg.ShowModal() != wx.ID_YES:
+                dlg.Destroy()
+                return
+            dlg.Destroy()
+            presenter.restore()
+        elif action == 'clear_analysis':
+            dlg = wx.MessageDialog(None, 'This will clear the current work on this data set.\nContinue?',
+                  'Question', wx.YES_NO | wx.NO_DEFAULT | wx.ICON_QUESTION)
+            if dlg.ShowModal() != wx.ID_YES:
+                dlg.Destroy()
+                return
+            dlg.Destroy()
+            presenter.clear_analysis()
+        else:
+            getattr(presenter, action)()
+        presenter.update()
 
     def OnAbout(self, evt):
         info = wx.adv.AboutDialogInfo()
