@@ -1,5 +1,6 @@
 import re, os, string, sys
 import configparser
+import threading
 import wx, wx.aui, wx.adv
 import wx.lib.filebrowsebutton as filebrowse
 #import wx.lib.pubsub as pubsub
@@ -16,6 +17,8 @@ from analysis_helpers import load_model
 from source_files import SOURCE_WILDCARD, is_source_file
 
 from config import DefaultValueHolder, MAX_PEAKS, expected_peak_count, peak_visibility_defaults
+import updater
+from version import APP_VERSION
 import filter_EPL_LabVIEW_ABRIO_File as peakio
 from datatype import GetABRDataType, ABRDataType, ABRStimPolarity, Point
 from datafile import get_expt_id, get_stim_freq
@@ -54,20 +57,22 @@ class PersistentFrame(wx.Frame):
             self.Maximize()
         self.Bind(wx.EVT_CLOSE, self.OnQuit)
 
+    def SaveWindowState(self):
+        maximized = self.IsMaximized()
+        self.Maximize(False)
+        fpos = self.GetPosition()
+        fsize = self.GetSize()
+        self.options.SetVariables(width=fsize[0], height=fsize[1],
+                x=fpos[0], y=fpos[1], maximized=int(maximized))
+        self.options.UpdateConfig()
+
     def OnQuit(self, evt):
         dlg = wx.MessageDialog(None, 'Are you sure you want to quit?',
               'Question', wx.YES_NO | wx.NO_DEFAULT | wx.ICON_QUESTION)
         response = dlg.ShowModal()
         if response == wx.ID_YES:
             try:
-                maximized = self.IsMaximized()
-                #We want the pos and size of the unmaximized window
-                self.Maximize(False)
-                fpos = self.GetPosition()
-                fsize = self.GetSize()
-                self.options.SetVariables(width=fsize[0], height=fsize[1],
-                        x=fpos[0], y=fpos[1], maximized=int(maximized))
-                self.options.UpdateConfig()
+                self.SaveWindowState()
             except Exception as e:
                 print(f"An unexpected error occurred: {e}")
         
@@ -1039,6 +1044,7 @@ class PhysiologyFrame(PersistentFrame):
             )
 
         PersistentFrame.__init__(self, name, parent, *args, **kwargs)
+        self.updates_enabled = updater.updates_enabled()
 
         #Initialize menu
         menubar = wx.MenuBar()
@@ -1128,7 +1134,10 @@ class PhysiologyFrame(PersistentFrame):
 
         help = wx.Menu()
         ID_DISPLAY_HELP = wx.NewId()
+        ID_CHECK_UPDATES = wx.NewId() if self.updates_enabled else None
         help.Append(ID_DISPLAY_HELP, '&Help\tCtrl+H', 'Help')
+        if self.updates_enabled:
+            help.Append(ID_CHECK_UPDATES, 'Check for &Updates', 'Check for Updates')
         help.AppendSeparator()
         help.Append(wx.ID_ABOUT, '&About\tCtrl+A', 'About')
         menubar.Append(help, '&Help')
@@ -1152,6 +1161,8 @@ class PhysiologyFrame(PersistentFrame):
         self.Bind(wx.EVT_MENU, self.OnBulkAnalyze, id=ID_BULK_ANALYZE)
         self.Bind(wx.EVT_MENU, self.OnExport, id=ID_EXPORT)
         self.Bind(wx.EVT_MENU, self.OnDisplayHelp, id=ID_DISPLAY_HELP)
+        if self.updates_enabled:
+            self.Bind(wx.EVT_MENU, self.OnCheckForUpdates, id=ID_CHECK_UPDATES)
 
         #Initialize manager and panels
         self.__mgr = wx.aui.AuiManager()
@@ -1193,11 +1204,79 @@ class PhysiologyFrame(PersistentFrame):
         self.CreateStatusBar()
         self.SetStatusText('Please drag and drop files to canvas')
         self.Show()
+        if self.updates_enabled:
+            wx.CallLater(1000, self.CheckForUpdates)
 
     def OnRefresh(self, evt=None):
         self.__filetree.root = self.__filetree.root
         self.SetStatusText('File tree refreshed.'
                                'Please drag and drop files to canvas.')
+
+    def OnCheckForUpdates(self, evt):
+        self.CheckForUpdates(notify=True)
+
+    def CheckForUpdates(self, notify=False):
+        if not self.updates_enabled:
+            return
+        if notify:
+            self.SetStatusText('Checking for updates...')
+        threading.Thread(target=self._check_for_updates,
+                         args=(notify,), daemon=True).start()
+
+    def _check_for_updates(self, notify):
+        try:
+            update = updater.available_update()
+        except Exception as e:
+            if notify:
+                wx.CallAfter(self._show_update_error, str(e))
+            return
+        if update:
+            wx.CallAfter(self._prompt_for_update, update)
+        elif notify:
+            wx.CallAfter(self._show_no_update)
+
+    def _show_no_update(self):
+        self.SetStatusText('ABR Peak Analysis is up to date.')
+        wx.MessageBox('ABR Peak Analysis is up to date.', 'No Updates',
+                      wx.OK | wx.ICON_INFORMATION, self)
+
+    def _prompt_for_update(self, update):
+        message = (
+            "Update to %s?\n\n"
+            "The installer will download, open, and ABR Peak Analysis will close."
+        ) % update["tag"]
+        dlg = wx.MessageDialog(self, message, 'Update Available',
+                               wx.YES_NO | wx.NO_DEFAULT | wx.ICON_QUESTION)
+        try:
+            if dlg.ShowModal() == wx.ID_YES:
+                self.SetStatusText('Downloading update %s...' % update["tag"])
+                threading.Thread(target=self._download_and_launch_update,
+                                 args=(update,), daemon=True).start()
+        finally:
+            dlg.Destroy()
+
+    def _download_and_launch_update(self, update):
+        try:
+            installer = updater.download_asset(update)
+            updater.launch_installer(installer)
+        except Exception as e:
+            wx.CallAfter(self._show_update_error, str(e))
+            return
+        wx.CallAfter(self._quit_for_update)
+
+    def _show_update_error(self, message):
+        self.SetStatusText('Update failed.')
+        wx.MessageBox(message, 'Update Error', wx.OK | wx.ICON_ERROR, self)
+
+    def _quit_for_update(self):
+        try:
+            self.SaveWindowState()
+        except Exception:
+            pass
+        self.Destroy()
+        app = wx.GetApp()
+        if app:
+            app.ExitMainLoop()
         
     def OnDisplayHelp(self, evt):
         # self.help.DisplayContents()
@@ -1308,7 +1387,7 @@ class PhysiologyFrame(PersistentFrame):
     def OnAbout(self, evt):
         info = wx.adv.AboutDialogInfo()
         info.Name = "ABR Peak Analysis"
-        info.Version = "1.11.1"
+        info.Version = APP_VERSION
         info.Copyright = "(C) 2007 Speech and Hearing Bioscience and Technology"
 #        info.WebSite = "http://web.mit.edu/shbt"
         info.Developers = ["Brad Buran"]

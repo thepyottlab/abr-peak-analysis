@@ -8,6 +8,7 @@ Usage:
 import os
 import shutil
 from setuptools import setup
+from version import APP_VERSION
 
 # Ensure clean build
 if os.path.exists("dist"):
@@ -55,7 +56,7 @@ DATA_FILES = ['splash.png', 'splash_pyottlab.png']
 
 setup(
     name='EPL ABR Analysis',
-    version='1.11.1',
+    version=APP_VERSION,
     app=APP,
     data_files=DATA_FILES,
     options=OPTIONS,

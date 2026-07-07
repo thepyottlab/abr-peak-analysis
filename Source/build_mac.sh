@@ -5,7 +5,11 @@ cd "$(dirname "$0")"
 
 NAME="EPL ABR Analysis"
 APPNAME="$NAME.app"
-VER="1.11.1"
+VER="$(python -c 'from version import APP_VERSION; print(APP_VERSION)')"
+INSTALLERS="$(cd .. && pwd)/Installers"
+PKGNAME="ABR-Peak-Analysis-${VER}-macos-arm64.pkg"
+
+mkdir -p "$INSTALLERS"
 
 if [[ "$1" != "-package" && "$1" != "-dmg" ]]; then
     echo "Building app..."
@@ -28,12 +32,11 @@ if [ "$1" != "-dmg" ]; then
     echo "Copying app to tmp..."
     mkdir -p "/tmp/PkgRoot/Applications/EPL"
     ditto "dist/$APPNAME" "/tmp/PkgRoot/Applications/EPL/$APPNAME"
+    mkdir -p "/tmp/PkgRoot/Applications/EPL/$APPNAME/Contents/Resources"
+    printf "installer\n" > "/tmp/PkgRoot/Applications/EPL/$APPNAME/Contents/Resources/install_mode.txt"
     
     echo "Building package installer..."
-    od=${PWD}
-    cd /tmp
-    pkgbuild --root PkgRoot "$NAME $VER.pkg"
-    cd "$od"
+    pkgbuild --root /tmp/PkgRoot "$INSTALLERS/$PKGNAME"
 fi
 
 if [ "$1" != "-package" ]; then   
@@ -51,3 +54,4 @@ if [ "$1" != "-package" ]; then
 fi
 
 echo "Done."
+echo "Release artifacts written to $INSTALLERS."
