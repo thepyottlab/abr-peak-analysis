@@ -9,12 +9,6 @@ if not exist "%INSTALLERS%" mkdir "%INSTALLERS%"
 echo Building Windows installer app...
 python -m PyInstaller --noconfirm notebook.spec || exit /b 1
 
-if not defined VERPATCH set "VERPATCH=verpatch.exe"
-"%VERPATCH%" ".\dist\notebook\notebook.exe" %APP_VERSION%.0 /va || (
-    echo Set VERPATCH to verpatch.exe.
-    exit /b 1
-)
-
 if not defined ISCC if exist "%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe" set "ISCC=%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe"
 if not defined ISCC if exist "%ProgramFiles%\Inno Setup 6\ISCC.exe" set "ISCC=%ProgramFiles%\Inno Setup 6\ISCC.exe"
 if not defined ISCC set "ISCC=ISCC.exe"
@@ -27,6 +21,7 @@ echo Building Windows portable executable...
 python -m PyInstaller --noconfirm --onefile --windowed ^
     --name "ABR-Peak-Analysis-%APP_VERSION%-win-x64-portable" ^
     --icon icon.ico ^
+    --version-file "build\version_info.txt" ^
     --distpath "%INSTALLERS%" ^
     --workpath "build\portable" ^
     --paths kpy ^

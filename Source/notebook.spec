@@ -1,9 +1,16 @@
 # -*- mode: python -*-
 
 import os
+import sys
 
 block_cipher = None
 HERE = os.path.abspath(SPECPATH)
+sys.path.insert(0, HERE)
+
+from pyinstaller_version_info import write_version_info
+
+VERSION_FILE = os.path.join(HERE, 'build', 'version_info.txt')
+write_version_info(VERSION_FILE)
 
 
 a = Analysis(['notebook.py'],
@@ -56,7 +63,8 @@ exe = EXE(pyz,
           strip=False,
           upx=True,
           console=False,
-          icon='icon.ico' )
+          icon='icon.ico',
+          version=VERSION_FILE)
 coll = COLLECT(exe,
                a.binaries,
                a.zipfiles,
