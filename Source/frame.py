@@ -17,7 +17,7 @@ from source_files import SOURCE_WILDCARD, is_source_file
 
 from config import DefaultValueHolder, MAX_PEAKS, expected_peak_count, peak_visibility_defaults
 import filter_EPL_LabVIEW_ABRIO_File as peakio
-from datatype import GetABRDataType, ABRDataType, ABRStimPolarity
+from datatype import GetABRDataType, ABRDataType, ABRStimPolarity, Point
 from datafile import get_expt_id, get_stim_freq
 
 from audiogram import load_audiogram
@@ -74,6 +74,40 @@ class PersistentFrame(wx.Frame):
             self.Destroy()
 
 #        evt.Skip()
+
+#----------------------------------------------------------------------------
+
+class ChoiceHintRenderer(wx.grid.GridCellStringRenderer):
+
+    def Clone(self):
+        return ChoiceHintRenderer()
+
+    def Draw(self, grid, attr, dc, rect, row, col, isSelected):
+        super().Draw(grid, attr, dc, rect, row, col, isSelected)
+        if rect.width < 16 or rect.height < 8:
+            return
+
+        bg = (grid.GetSelectionBackground() if isSelected
+              else attr.GetBackgroundColour())
+        fg = (grid.GetSelectionForeground() if isSelected
+              else wx.SystemSettings.GetColour(wx.SYS_COLOUR_GRAYTEXT))
+        if not bg.IsOk():
+            bg = grid.GetDefaultCellBackgroundColour()
+
+        gutter = wx.Rect(rect.GetRight() - 14, rect.y + 1, 13, rect.height - 2)
+        dc.SetPen(wx.Pen(bg))
+        dc.SetBrush(wx.Brush(bg))
+        dc.DrawRectangle(gutter)
+
+        x = rect.GetRight() - 10
+        y = rect.y + rect.height // 2 - 1
+        dc.SetPen(wx.Pen(fg))
+        dc.SetBrush(wx.Brush(fg))
+        dc.DrawPolygon([
+            wx.Point(x, y - 2),
+            wx.Point(x + 7, y - 2),
+            wx.Point(x + 3, y + 3),
+        ])
 
 #----------------------------------------------------------------------------
 
@@ -707,6 +741,8 @@ class ConvertFilesDialog(wx.Dialog):
         for row in range(start_row, self.template_grid.GetNumberRows()):
             editor = wx.grid.GridCellChoiceEditor(self.channel_choices, True)
             self.template_grid.SetCellEditor(row, channel_col, editor)
+            self.template_grid.SetCellRenderer(
+                row, channel_col, ChoiceHintRenderer())
 
     def set_template_timestamp_editor(self, row):
         timestamp_col = self.template_timestamp_col()
@@ -715,6 +751,8 @@ class ConvertFilesDialog(wx.Dialog):
         editor = wx.grid.GridCellChoiceEditor(
             self.timestamp_choices_for_row(row), True)
         self.template_grid.SetCellEditor(row, timestamp_col, editor)
+        self.template_grid.SetCellRenderer(
+            row, timestamp_col, ChoiceHintRenderer())
 
     def refresh_template_timestamp_editors(self):
         if self.template_grid is None:
@@ -1033,6 +1071,29 @@ class PhysiologyFrame(PersistentFrame):
                 ('Toggle &normalized view\tN', 'toggle_normalized', 'Toggle normalized view'),
                 ('Increase scaling\t+', 'increase_scaling', 'Increase scaling'),
                 ('Decrease scaling\t-', 'decrease_scaling', 'Decrease scaling'),
+        ]:
+            item_id = wx.NewId()
+            edit.Append(item_id, label, help_text)
+            edit_ids[item_id] = action
+
+        edit.AppendSeparator()
+        select_peak = wx.Menu()
+        for number in range(1, MAX_PEAKS + 1):
+            item_id = wx.NewId()
+            select_peak.Append(item_id, 'Select peak %d\t%d' % (number, number), 'Select peak %d' % number)
+            edit_ids[item_id] = ('select_peak', number)
+        edit.AppendSubMenu(select_peak, 'Select &peak')
+
+        select_trough = wx.Menu()
+        for number in range(1, MAX_PEAKS + 1):
+            item_id = wx.NewId()
+            select_trough.Append(item_id, 'Select trough %d\tShift+%d' % (number, number), 'Select trough %d' % number)
+            edit_ids[item_id] = ('select_trough', number)
+        edit.AppendSubMenu(select_trough, 'Select &trough')
+
+        for label, action, help_text in [
+                ('Update subsequent points\tU', 'update_point', 'Update subsequent points'),
+                ('Estimate troughs\tI', 'guess_n', 'Estimate troughs'),
                 (None, None, None),
                 ('Set threshold manually\tReturn', 'set_threshold', 'Set threshold manually'),
                 ('Estimate &threshold\tT', 'estimate_threshold', 'Estimate threshold'),
@@ -1214,7 +1275,10 @@ class PhysiologyFrame(PersistentFrame):
             self.SetStatusText('Active tab is not a waveform.')
             return
 
-        if action == 'toggle_normalized':
+        if isinstance(action, tuple):
+            point_type = Point.PEAK if action[0] == 'select_peak' else Point.VALLEY
+            presenter.toggle = (point_type, action[1])
+        elif action == 'toggle_normalized':
             presenter.normalized = not presenter.normalized
         elif action == 'increase_scaling':
             presenter.scale += 1

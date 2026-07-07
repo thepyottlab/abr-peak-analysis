@@ -18,6 +18,8 @@ class KeyInteractor(object):
             390:            'minus'   # numeric keypad
  
         }
+    MENU_KEYCODES = {wx.WXK_RETURN, 43, 45, 61, 388, 390}
+    MENU_KEYCHARS = set('deilnprstuwx') | {str(i) for i in range(1, MAX_PEAKS + 1)}
 
     def Install(self, presenter, view):
         self.presenter = presenter
@@ -38,7 +40,12 @@ class KeyInteractor(object):
         self.__dispatch('kd_', evt)
 
     def __dispatch(self, type, evt):
+        for modifier in ('CmdDown', 'ControlDown', 'AltDown', 'MetaDown'):
+            if getattr(evt, modifier, lambda: False)():
+                return
         keycode = evt.GetKeyCode()
+        if self.__menu_owns_key(keycode):
+            return
         if keycode in KeyInteractor.KEYS:
             mname = type + KeyInteractor.KEYS[keycode]
             if hasattr(self, mname):
@@ -64,6 +71,13 @@ class KeyInteractor(object):
                 mname = type + chr(keycode).lower()
                 if hasattr(self, mname):
                     getattr(self, mname)()
+
+    def __menu_owns_key(self, keycode):
+        if keycode in KeyInteractor.MENU_KEYCODES:
+            return True
+        if keycode >= 256:
+            return False
+        return chr(keycode).lower() in KeyInteractor.MENU_KEYCHARS
 
 #----------------------------------------------------------------------------
 
