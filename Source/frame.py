@@ -365,6 +365,7 @@ class ConvertFilesDialog(wx.Dialog):
                 self.template_grid.SetColSize(col, 150)
             self.fit_template_columns()
             self.set_template_channel_editors()
+            self.refresh_template_timestamp_editors()
             self.template_grid.Bind(wx.EVT_KEY_DOWN, self.on_template_key_down)
             self.template_grid.Bind(wx.grid.EVT_GRID_CELL_CHANGING,
                                     self.on_template_cell_changing)
