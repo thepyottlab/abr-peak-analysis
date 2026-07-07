@@ -1,29 +1,54 @@
+# ABR Peak Analysis
+
 ![splash](Source/splash.png)
 
-This is the EPL-maintained version of the program originally written by Brad Buran.
+ABR Peak Analysis is a desktop tool for inspecting auditory brainstem response or VSEP recordings, filtering recordings, marking peaks/troughs, estimating thresholds, and exporting results.
 
-[Help](https://EPL-Engineering.github.io/abr-peak-analysis/)
+This is a fork by The Pyott Lab of the EPL-maintained version of ABR Peak Analysis, originally written by Brad Buran.
 
-[Changelog](CHANGELOG.md)
+## Installation
 
-Runtime environment:
+Download the latest version from the [Releases](https://github.com/TomNaber/abr-peak-analysis/releases) page.
+
+Use the file appropriate for your platform:
+
+- **Windows installer:** `ABR-Peak-Analysis-Setup-{version}-win-x64.exe`
+- **Windows portable:** `ABR-Peak-Analysis-{version}-win-x64-portable.exe`
+- **macOS Apple Silicon:** `ABR-Peak-Analysis-{version}-macos-arm64.pkg`
+
+The regular Windows and macOS installers may require administrator permission.
+
+The Windows portable version does not require installation or administrator permission. It can be run directly, but it does not update itself automatically. To update the portable version, download the newer portable executable from the Releases page.
+
+## Documentation
+
+- [Help / user documentation](https://EPL-Engineering.github.io/abr-peak-analysis/)
+- [Changelog](CHANGELOG.md)
+
+## Running from source
+
+Create and activate the runtime environment:
+
 ```bash
 conda create -n abr python=3.9.12 pip
 conda activate abr
 python -m pip install -r requirements.txt
+```
+
+Launch the application:
+
+```bash
 python Source/notebook.py
 ```
 
-Developer build tool:
+## Developer build tools
+
+Install PyInstaller when building standalone application bundles:
+
 ```bash
 python -m pip install pyinstaller
 ```
 
-Notes: numpy v2.0.1 has bugs that break bundled apps without a console, e.g.:
-```
-  File "numpy\f2py\cfuncs.py", line 19, in <module>
-    errmess = sys.stderr.write
-AttributeError: 'NoneType' object has no attribute 'write'
-```
+## License
 
-See [here](https://github.com/numpy/numpy/issues/26862)
+See [LICENSE](LICENSE) for license details.
