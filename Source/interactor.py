@@ -145,6 +145,9 @@ class WaveformInteractor(KeyInteractor):
     def ku_l(self):
         self.presenter.toggle_show_io()
 
+    def ku_e(self):
+        self.presenter.export_waveforms()
+
     def ku_i(self):    
         self.presenter.guess_n()
 

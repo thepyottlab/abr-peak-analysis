@@ -16,7 +16,7 @@ from datatype import Point
 from datatype import ABRDataType
 import numpy as np
 
-from config import DefaultValueHolder, expected_peak_count
+from config import DefaultValueHolder, expected_peak_count, peak_visibility_defaults
 from analysis_helpers import getindices, guess_peaks, guess_troughs, setpoint
 import filter_EPL_LabVIEW_ABRIO_File as peakio
 #import wx.lib.pubsub as pubsub
@@ -334,9 +334,17 @@ class WaveformPresenter(object):
         guess_peaks(self.model, start)
 
     def update_point(self):
+        if self.toggle is None:
+            self.view.GetTopLevelParent().SetStatusText(
+                'Select a peak or trough before updating guesses.')
+            return
+
         for i in reversed(range(self.current)):
             cur = self.model.series[i]
-            index = self.model.series[i+1].points[self.toggle].index
+            try:
+                index = self.model.series[i+1].points[self.toggle].index
+            except KeyError:
+                continue
             amplitude = self.model.series[i+1].y[index]
             if self.toggle[0] == Point.PEAK:
                 index = find_np(cur.fs, cur.y, algorithm="seed", n=1,
@@ -346,6 +354,16 @@ class WaveformPresenter(object):
                         seeds=[(index, amplitude)], nzc='noise_filtered')[0]
             self.setpoint(cur, self.toggle, index)
         self._plotupdate = True
+
+    def export_waveforms(self):
+        try:
+            import merge_export_saved
+            path, count = merge_export_saved.export_model_waveforms(self.model)
+        except Exception as e:
+            wx.MessageBox(str(e), 'Export Error', wx.OK | wx.ICON_ERROR)
+            return
+        self.view.GetTopLevelParent().SetStatusText(
+            'Exported %d waveform rows to %s' % (count, path))
 
     def guess_n(self, start=None):
         self.N = True
@@ -395,21 +413,66 @@ class WaveformPresenter(object):
                      color='blue', va='bottom')
 
     def plot_io(self):
-        ymax = 0
+        self.view.ioplot.clear()
+        self.view.ioplot.set_xlabel('Level (dB SPL)')
+        self.view.ioplot.set_ylabel('Amplitude (uV)')
+
         level = np.array([w.level for w in self.model.series])
+        values = []
         for k in range(expected_peak_count()):
-            y = np.array([w.points[(Point.PEAK, k+1)].amplitude for w in self.model.series]) 
-            ymax = np.max((ymax, y.max()))
+            label = k + 1
+            if not self._point_visible(Point.PEAK, label):
+                continue
+            trough_visible = self._point_visible(Point.VALLEY, label)
+            y = np.array([
+                self._io_amplitude(w, label, trough_visible)
+                for w in self.model.series
+            ])
+            values.extend(y[np.isfinite(y)])
             self.view.ioplot.plot(level, y, '-', color=PointPlot.COLORS[k])
-            
-        for k in range(len(self.model.randomPeaks)):
-            p = self.model.randomPeaks[k]
-            self.view.ioplot.plot(level[k]*np.ones(len(p)), p, 'o', color='k', markersize=4)
-        
-        self.view.ioplot.plot((np.min(level)-5, np.max(level)+5), self.model.noiseFloor*np.ones(2), '-', color='k')
+
+        random_peaks = getattr(self.model, 'randomPeaks', None)
+        if getattr(self.model, 'useNoiseFloor', False) and random_peaks is not None:
+            for k, p in enumerate(random_peaks[:len(level)]):
+                self.view.ioplot.plot(level[k]*np.ones(len(p)), p, 'o', color='k', markersize=4)
+            noise_floor = getattr(self.model, 'noiseFloor', 0)
+            self.view.ioplot.plot((np.min(level)-5, np.max(level)+5),
+                                  noise_floor*np.ones(2), '-', color='k')
+            values.append(noise_floor)
         
         self.view.ioplot.set_xlim(np.min(level)-5, np.max(level)+5)
-        self.view.ioplot.set_ylim(0, ymax * 1.05)
+        finite = np.array(values)
+        finite = finite[np.isfinite(finite)]
+        if len(finite):
+            ymin = min(0, float(np.min(finite)))
+            ymax = max(0, float(np.max(finite)))
+            pad = (ymax - ymin) * 0.05 or 1
+            self.view.ioplot.set_ylim(ymin - pad, ymax + pad)
+        else:
+            self.view.ioplot.set_ylim(0, 1)
+
+    def _point_visible(self, point_type, label):
+        visible = DefaultValueHolder('PhysiologyNotebook', 'peakVisibility')
+        visible.SetVariables(peak_visibility_defaults())
+        visible.InitFromConfig()
+        prefix = 'p' if point_type == Point.PEAK else 'n'
+        return getattr(visible, '%s%d' % (prefix, label))
+
+    def _point_amplitude(self, waveform, point):
+        value = getattr(waveform, 'points', {}).get(point)
+        if value is None or value.index < 0 or value.index >= len(waveform.y):
+            return np.nan
+        return value.amplitude
+
+    def _io_amplitude(self, waveform, label, trough_visible):
+        peak = self._point_amplitude(waveform, (Point.PEAK, label))
+        if not np.isfinite(peak):
+            return np.nan
+        if trough_visible:
+            trough = self._point_amplitude(waveform, (Point.VALLEY, label))
+            if np.isfinite(trough):
+                return peak - trough
+        return peak
         
 
     def toggle_show_work(self):

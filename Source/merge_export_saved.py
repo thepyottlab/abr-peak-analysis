@@ -77,6 +77,38 @@ def export_source_files(paths, output_folder, identifier=''):
     }
 
 
+def export_model_waveforms(model, output_folder=None):
+    source = getattr(model, 'filename', '')
+    output_folder = output_folder or os.path.dirname(source) or os.getcwd()
+    if not os.path.isdir(output_folder):
+        raise ValueError(f'Output folder does not exist: {output_folder}')
+
+    identifier = os.path.splitext(os.path.basename(source))[0]
+    return _write_csv(
+        output_folder, 'waveforms.csv', WAVEFORM_FIELDS,
+        model_waveform_rows(model), identifier)
+
+
+def model_waveform_rows(model):
+    import analysis_sqlite
+
+    filename = os.path.splitext(os.path.basename(getattr(model, 'filename', '')))[0]
+    settings = getattr(model, 'filter_settings', None)
+    filter_name = analysis_sqlite.filter_label(settings) if settings else 'none'
+    rows = []
+    for waveform in model.series:
+        for latency, amplitude in zip(waveform.x, waveform.y):
+            rows.append({
+                'filename': filename,
+                'level': waveform.level,
+                'frequency': model.freq,
+                'filter': filter_name,
+                'latency': float(latency),
+                'amplitude': float(amplitude),
+            })
+    return rows
+
+
 def source_waveform_rows(path):
     model = _load_source_model(path)
     filename = os.path.splitext(os.path.basename(getattr(model, 'filename', path)))[0]

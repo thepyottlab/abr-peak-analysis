@@ -10,18 +10,10 @@ def _open_files(data):
         return []
     return [data['data_string']]
 
-def _open_inverts(event=None, drag_result=None):
-    if drag_result == wx.DragCopy:
-        return True
-
-    for source in (event,):
-        if source is None:
-            continue
-        for method in ('CmdDown', 'ControlDown'):
-            if getattr(source, method, lambda: False)():
-                return True
-
-    source = wx.GetMouseState()
+def _open_inverts(event=None):
+    source = event
+    if source is None:
+        return False
     for method in ('CmdDown', 'ControlDown'):
         if getattr(source, method, lambda: False)():
             return True

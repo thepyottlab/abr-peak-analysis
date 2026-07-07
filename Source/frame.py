@@ -8,7 +8,7 @@ import wx.grid
 import webbrowser
 from pathlib import Path
 
-from control import MatplotlibPanel, LazyTree, MPLAudiogram, _open_inverts
+from control import MatplotlibPanel, LazyTree, MPLAudiogram
 from AudiogramPresenter import AudiogramPresenter
 from WaveformPresenter import WaveformPresenter
 from interactor import KeyInteractor, WaveformInteractor, AudiogramInteractor
@@ -220,14 +220,12 @@ class PhysiologyNbFileDropTarget(wx.FileDropTarget):
     def __init__(self, parent):
         wx.FileDropTarget.__init__(self)
         self.parent = parent
-        self.invert = False
 
     def OnDropFiles(self, x, y, filenames):
-        self.parent.load(filenames, self.invert or _open_inverts())
+        self.parent.load(filenames)
         return True
 
     def OnEnter(self, x, y, meta):
-        self.invert = _open_inverts(drag_result=meta)
         return wx.DragMove    
 
 #----------------------------------------------------------------------------
