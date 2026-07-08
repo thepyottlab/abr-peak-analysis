@@ -1502,10 +1502,9 @@ class PhysiologyOptions(wx.Dialog):
             'file': {'startdir': '.'},
             'iofilter': {'method': 'database'},
             'showallpol': {'value': False},
-            'minlatency': {'value': float(1.5)},
-            'baselinewin': {'value': float(0.3)},
+            'minlatency': {'value': float(0.9)},
             'useNoiseFloor': {'value': False},
-            'overwriteOnSave': {'value': False},
+            'overwriteOnSave': {'value': True},
             'autoRestore': {'value': True},
             'timeRangeMin': {'value': float(0)},
             'timeRangeMax': {'value': ''},
@@ -1533,7 +1532,6 @@ class PhysiologyOptions(wx.Dialog):
         self.iofilter = self._configured_option('iofilter')
         self.showallpol = self._configured_option('showallpol')
         self.minlatency = self._configured_option('minlatency')
-        self.baselinewin = self._configured_option('baselinewin')
         self.useNoiseFloor = self._configured_option('useNoiseFloor')
         self.overwriteOnSave = self._configured_option('overwriteOnSave')
         self.autoRestore = self._configured_option('autoRestore')
@@ -1547,7 +1545,6 @@ class PhysiologyOptions(wx.Dialog):
         file = self.file
         minlatency = self.minlatency
         showallpol = self.showallpol
-        baselinewin = self.baselinewin
 
         ftypes = ['None', 'Bessel', 'Butterworth']
         wx.Dialog.__init__(self)
@@ -1646,28 +1643,20 @@ class PhysiologyOptions(wx.Dialog):
             size=(75,-1), validator=MinLatencyValidator())
         psizer.Add(self.mlb, 0, wx.ALL, 5)
 
-        # baseline window
+        # Use noise floor
         psizer.AddSpacer(same_row_item_gap)
-        label = wx.StaticText(self, wx.ID_ANY, "Baseline window (ms):")
+        label = wx.StaticText(self, wx.ID_ANY, "Do noise floor analysis:")
         psizer.Add(label, 0, wx.ALL, 5)
-        self.blw = wx.TextCtrl(self, wx.ID_ANY, str(baselinewin.value),
-            size=(75,-1), validator=MinLatencyValidator())
-        psizer.Add(self.blw, 0, wx.ALL, 5)
+        self.nfcb = wx.CheckBox(self, wx.ID_ANY)
+        self.nfcb.SetValue(self.useNoiseFloor.value)
+        self.nfcb.Bind(wx.EVT_CHOICE, self.OnUseNoiseFloorCheck)
+        psizer.Add(self.nfcb, 0, wx.ALL, 5)
 
         # Saving
         obox = wx.StaticBox(self, wx.ID_ANY, "Saving")
         osizer = wx.StaticBoxSizer(obox, wx.HORIZONTAL)
 
-        # Use noise floor
-        label = wx.StaticText(self, wx.ID_ANY, "Do noise floor analysis:")
-        osizer.Add(label, 0, wx.ALL, 5)
-        self.nfcb = wx.CheckBox(self, wx.ID_ANY)
-        self.nfcb.SetValue(self.useNoiseFloor.value)
-        self.nfcb.Bind(wx.EVT_CHOICE, self.OnUseNoiseFloorCheck)
-        osizer.Add(self.nfcb, 0, wx.ALL, 5)
-
         # Overwrite on save
-        osizer.AddSpacer(same_row_item_gap)
         label = wx.StaticText(self, wx.ID_ANY, "Overwrite on save:")
         osizer.Add(label, 0, wx.ALL, 5)
         self.owcb = wx.CheckBox(self, wx.ID_ANY)
@@ -1789,7 +1778,6 @@ class PhysiologyOptions(wx.Dialog):
         self.tmaxb.SetValue(str(defaults['timeRangeMax']['value']))
         self.cb.SetValue(defaults['showallpol']['value'])
         self.mlb.SetValue(str(defaults['minlatency']['value']))
-        self.blw.SetValue(str(defaults['baselinewin']['value']))
         self.nfcb.SetValue(defaults['useNoiseFloor']['value'])
         self.owcb.SetValue(defaults['overwriteOnSave']['value'])
         self.arcb.SetValue(defaults['autoRestore']['value'])
@@ -1832,8 +1820,6 @@ class PhysiologyOptions(wx.Dialog):
             self.showallpol.UpdateConfig()
             self.minlatency.SetVariables(value=float(self.mlb.GetValue()))
             self.minlatency.UpdateConfig()
-            self.baselinewin.SetVariables(value=float(self.blw.GetValue()))
-            self.baselinewin.UpdateConfig()
             self.timeRangeMin.SetVariables(
                 value=self._optional_float(self.tminb.GetValue(), 0.0))
             self.timeRangeMin.UpdateConfig()

@@ -49,7 +49,7 @@ def getindices(waveform, point):
 
 def guess_peaks(model, start=None):
     minlatency = DefaultValueHolder('PhysiologyNotebook', 'minlatency')
-    minlatency.SetVariables(value=float(1.0))
+    minlatency.SetVariables(value=float(0.9))
     minlatency.InitFromConfig()
 
     if start is None:

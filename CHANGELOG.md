@@ -9,6 +9,7 @@
 - Eclipse showing 'Click' rather than '0' in the stimulus frequency field
 - files additionally showing average sweeps when 'Analyze each stimulus polarity' is enabled
 - options menu item spacing
+- better defaults
 
 #### Added
 - option to ignore update
