@@ -12,6 +12,7 @@ from abrpanel import WaveformPlot
 from abrpanel import PointPlot
 from peakdetect import find_np
 from peakdetect import manual_np
+from peakdetect import nzc
 from datatype import Point
 from datatype import ABRDataType
 import numpy as np
@@ -341,6 +342,64 @@ class WaveformPresenter(object):
             self._redrawflag = True
         
     toggle = property(get_toggle, set_toggle, None, None)
+
+    def point_at(self, event):
+        for plot_index in self._point_hit_order():
+            point_plots = list(self.plots[plot_index].points.items())
+            for point, plot in reversed(point_plots):
+                if plot.contains(event):
+                    return plot_index, point
+        return None
+
+    def _point_hit_order(self):
+        indices = list(reversed(range(len(self.plots))))
+        if self.current in indices:
+            indices.remove(self.current)
+            indices.insert(0, self.current)
+        return indices
+
+    def select_point_hit(self, hit):
+        plot_index, point = hit
+        self.current = plot_index
+        self.toggle = point
+
+    def index_at_x(self, waveform, xdata):
+        if xdata is None or not np.isfinite(xdata) or len(waveform.x) == 0:
+            return None
+        index = int(np.searchsorted(waveform.x, xdata))
+        if index <= 0:
+            return 0
+        if index >= len(waveform.x):
+            return len(waveform.x) - 1
+        left = index - 1
+        if abs(waveform.x[left] - xdata) <= abs(waveform.x[index] - xdata):
+            return left
+        return index
+
+    def nearest_point_index(self, waveform, index, point_type):
+        y = np.asarray(waveform.y)
+        candidates = nzc(y if point_type == Point.PEAK else -y)
+        if len(candidates) == 0:
+            return index
+        return int(candidates[np.argmin(np.abs(candidates - index))])
+
+    def move_toggle_to_x(self, xdata, snap=True):
+        if self.toggle is None:
+            return
+        waveform = self.model.series[self.current]
+        index = self.index_at_x(waveform, xdata)
+        if index is None:
+            return
+        if snap:
+            index = self.nearest_point_index(waveform, index, self.toggle[0])
+        self.set_toggle_index(index)
+
+    def set_toggle_index(self, index):
+        waveform = self.model.series[self.current]
+        waveform.points[self.toggle].index = int(index)
+        self.iterator = None
+        self.plots[self.current].points[self.toggle].update()
+        self._redrawflag = True
 
     def guess_p(self, start=None):
         self.P = True

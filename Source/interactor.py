@@ -85,11 +85,70 @@ class WaveformInteractor(KeyInteractor):
 
     def Install(self, presenter, view):
         super(WaveformInteractor, self).Install(presenter, view)
-        self.view.canvas.Bind(wx.EVT_LEFT_DOWN, self._leftdown)
+        self._dragging_point = False
+        self._hand_cursor = False
+        self.view.canvas.mpl_connect('button_press_event', self._button_press)
+        self.view.canvas.mpl_connect('motion_notify_event', self._motion)
+        self.view.canvas.mpl_connect('button_release_event', self._button_release)
+        self.view.canvas.mpl_connect('figure_leave_event', self._leave)
 
     def _leftdown(self, evt):
         self.presenter.toggle = None
         evt.Skip()
+
+    def _button_press(self, event):
+        if not self._left_button(event):
+            return
+        self.view.canvas.SetFocus()
+        hit = self.presenter.point_at(event)
+        if hit is None:
+            self.presenter.toggle = None
+            self._dragging_point = False
+            self._set_hand_cursor(False)
+            return
+        self.presenter.select_point_hit(hit)
+        self._dragging_point = True
+        self._set_hand_cursor(True)
+
+    def _motion(self, event):
+        if self._dragging_point:
+            if event.inaxes == self.view.subplot:
+                self.presenter.move_toggle_to_x(event.xdata,
+                                                snap=not self._shift_down(event))
+            self._set_hand_cursor(True)
+            return
+        self._update_cursor(event)
+
+    def _button_release(self, event):
+        if not self._left_button(event):
+            return
+        self._dragging_point = False
+        self._update_cursor(event)
+
+    def _leave(self, event):
+        if not self._dragging_point:
+            self._set_hand_cursor(False)
+
+    def _update_cursor(self, event):
+        self._set_hand_cursor(self.presenter.point_at(event) is not None)
+
+    def _set_hand_cursor(self, hand):
+        if hand == self._hand_cursor:
+            return
+        cursor = wx.CURSOR_HAND if hand else wx.CURSOR_DEFAULT
+        self.view.canvas.SetCursor(wx.StockCursor(cursor))
+        self._hand_cursor = hand
+
+    def _left_button(self, event):
+        button = getattr(event, 'button', None)
+        return button == 1 or getattr(button, 'name', None) == 'LEFT'
+
+    def _shift_down(self, event):
+        gui_event = getattr(event, 'guiEvent', None)
+        if gui_event is not None and hasattr(gui_event, 'ShiftDown'):
+            return gui_event.ShiftDown()
+        key = getattr(event, 'key', None)
+        return isinstance(key, str) and 'shift' in key.lower()
 
     def kd_up(self, evt):
         self.presenter.current += 1

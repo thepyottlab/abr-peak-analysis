@@ -110,6 +110,15 @@ class PointPlot(StylePlot):
     def remove(self):
         self.plot.remove()
 
+    def contains(self, event):
+        try:
+            if self.plot.get_alpha() == 0:
+                return False
+            hit, _ = self.plot.contains(event)
+            return hit
+        except AttributeError:
+            return False
+
     def _is_faded(self):
         saved = getattr(self.parent.waveform, 'saved_points', {})
         return saved.get(self.point.point, None) != self.point.index

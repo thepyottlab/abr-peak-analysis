@@ -13,6 +13,7 @@
 #### Added
 - option to ignore update
 - update checking for portable installation
+- drag and drop of peaks/troughs on the canvas
 
 ### V2.0.0 (2026-07-07)
 #### Fixed
