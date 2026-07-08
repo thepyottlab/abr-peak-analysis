@@ -1044,7 +1044,11 @@ class PhysiologyFrame(PersistentFrame):
             )
 
         PersistentFrame.__init__(self, name, parent, *args, **kwargs)
-        self.updates_enabled = updater.updates_enabled()
+        self.update_mode = updater.install_mode()
+        self.updates_enabled = updater.updates_enabled(mode=self.update_mode)
+        self.update_options = DefaultValueHolder("PhysiologyNotebook", "updater")
+        self.update_options.SetVariables(ignoredVersion="")
+        self.update_options.InitFromConfig()
 
         #Initialize menu
         menubar = wx.MenuBar()
@@ -1225,15 +1229,25 @@ class PhysiologyFrame(PersistentFrame):
 
     def _check_for_updates(self, notify):
         try:
-            update = updater.available_update()
+            update = updater.available_update(mode=self.update_mode)
         except Exception as e:
             if notify:
                 wx.CallAfter(self._show_update_error, str(e))
             return
         if update:
+            if not notify and self._is_ignored_update(update):
+                return
             wx.CallAfter(self._prompt_for_update, update)
         elif notify:
             wx.CallAfter(self._show_no_update)
+
+    def _is_ignored_update(self, update):
+        return self.update_options.ignoredVersion == update["tag"]
+
+    def _ignore_update(self, update):
+        self.update_options.SetVariables(ignoredVersion=update["tag"])
+        self.update_options.UpdateConfig()
+        self.SetStatusText('Ignored update %s.' % update["tag"])
 
     def _show_no_update(self):
         self.SetStatusText('ABR Peak Analysis is up to date.')
@@ -1241,19 +1255,38 @@ class PhysiologyFrame(PersistentFrame):
                       wx.OK | wx.ICON_INFORMATION, self)
 
     def _prompt_for_update(self, update):
-        message = (
-            "Update to %s?\n\n"
-            "The installer will download, open, and ABR Peak Analysis will close."
-        ) % update["tag"]
+        if self.update_mode == updater.PORTABLE_MODE:
+            message = (
+                "Update to %s?\n\n"
+                "Download and install the latest version from:\n%s"
+            ) % (update["tag"], update["release_url"])
+            yes_label = "Download"
+        else:
+            message = (
+                "Update to %s?\n\n"
+                "The installer will download, open, and ABR Peak Analysis will close."
+            ) % update["tag"]
+            yes_label = "Install"
+
         dlg = wx.MessageDialog(self, message, 'Update Available',
-                               wx.YES_NO | wx.NO_DEFAULT | wx.ICON_QUESTION)
+                               wx.YES_NO | wx.CANCEL | wx.CANCEL_DEFAULT |
+                               wx.ICON_QUESTION)
+        dlg.SetYesNoCancelLabels(yes_label, "Ignore This Update", "Cancel")
         try:
-            if dlg.ShowModal() == wx.ID_YES:
+            response = dlg.ShowModal()
+        finally:
+            dlg.Destroy()
+
+        if response == wx.ID_YES:
+            if self.update_mode == updater.PORTABLE_MODE:
+                webbrowser.open(update["release_url"])
+                self.SetStatusText('Opened GitHub Releases for %s.' % update["tag"])
+            else:
                 self.SetStatusText('Downloading update %s...' % update["tag"])
                 threading.Thread(target=self._download_and_launch_update,
                                  args=(update,), daemon=True).start()
-        finally:
-            dlg.Destroy()
+        elif response == wx.ID_NO:
+            self._ignore_update(update)
 
     def _download_and_launch_update(self, update):
         try:

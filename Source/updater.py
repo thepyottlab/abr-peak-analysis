@@ -13,8 +13,12 @@ from version import APP_VERSION
 
 
 LATEST_RELEASE_URL = "https://api.github.com/repos/TomNaber/abr-peak-analysis/releases/latest"
+RELEASES_PAGE_URL = "https://github.com/TomNaber/abr-peak-analysis/releases/latest"
 MARKER_FILE = "install_mode.txt"
 USER_AGENT = "ABR-Peak-Analysis-Updater"
+INSTALLER_MODE = "installer"
+PORTABLE_MODE = "portable"
+SOURCE_MODE = "source"
 
 
 def version_tuple(value):
@@ -44,13 +48,27 @@ def marker_paths(executable=None, meipass=None):
     return paths
 
 
-def updates_enabled(paths=None):
-    for path in paths or marker_paths():
+def install_mode(paths=None, executable=None, frozen=None):
+    paths = paths if paths is not None else marker_paths(executable=executable)
+    for path in paths:
         try:
-            return path.read_text(encoding="utf-8").strip().lower() == "installer"
+            mode = path.read_text(encoding="utf-8").strip().lower()
+            if mode in (INSTALLER_MODE, PORTABLE_MODE):
+                return mode
         except OSError:
             pass
-    return False
+
+    executable = Path(executable or sys.executable)
+    if frozen is None:
+        frozen = getattr(sys, "frozen", False)
+    if frozen and "portable" in executable.name.lower():
+        return PORTABLE_MODE
+    return SOURCE_MODE
+
+
+def updates_enabled(mode=None, paths=None):
+    mode = mode or install_mode(paths=paths)
+    return mode in (INSTALLER_MODE, PORTABLE_MODE)
 
 
 def fetch_latest_release(url=LATEST_RELEASE_URL):
@@ -96,15 +114,29 @@ def select_asset(release, system=None, machine=None):
     return None
 
 
-def available_update(current_version=APP_VERSION):
-    if not updates_enabled():
+def available_update(current_version=APP_VERSION, mode=None):
+    mode = mode or install_mode()
+    if not updates_enabled(mode=mode):
         return None
 
     release = fetch_latest_release()
     tag = release.get("tag_name", "")
     if not is_newer_version(tag, current_version):
         return None
-    return select_asset(release)
+
+    update = {
+        "tag": tag,
+        "version": tag.lstrip("v"),
+        "release_url": release.get("html_url") or RELEASES_PAGE_URL,
+    }
+    if mode == PORTABLE_MODE:
+        return update
+
+    asset = select_asset(release)
+    if not asset:
+        return None
+    update.update(asset)
+    return update
 
 
 def download_asset(asset, dest_dir=None):

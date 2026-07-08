@@ -19,7 +19,7 @@ Use the file appropriate for your platform:
 
 The regular Windows and macOS installers may require administrator permission.
 
-The Windows portable version does not require installation or administrator permission. It can be run directly, but it does not update itself automatically. To update the portable version, download the newer portable executable from the Releases page.
+The Windows portable version does not require installation or administrator permission. It can run directly and can check for updates, but it will only open the Releases page so you can download the newer portable executable yourself.
 
 ## Documentation
 
