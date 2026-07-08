@@ -6,6 +6,8 @@ try:
 except ImportError:
     wx = None
 
+from config import DefaultValueHolder
+from datafile import polarity_unsupported_message
 from source_files import SOURCE_WILDCARD, find_source_files, is_source_file
 
 
@@ -31,7 +33,7 @@ def find_analyzed_files(folder):
 
 
 def export_sqlite_files(paths, output_folder, thresholds=True, peaks=True, waveforms=True,
-                        identifier=''):
+                        identifier='', analyze_each_polarity=None):
     paths = sorted(set(paths))
     if not paths:
         raise ValueError('No SQLite analysis files selected.')
@@ -40,24 +42,30 @@ def export_sqlite_files(paths, output_folder, thresholds=True, peaks=True, wavef
     if not os.path.isdir(output_folder):
         raise ValueError(f'Output folder does not exist: {output_folder}')
 
+    selections, include_polarity = export_selections(paths, analyze_each_polarity)
+
     written = {}
     if thresholds:
         rows = []
-        for path in paths:
-            rows.extend(threshold_rows(path))
+        for path, polarities in selections.items():
+            rows.extend(threshold_rows(path, polarities, include_polarity))
         written['thresholds'] = _write_csv(
-            output_folder, 'thresholds.csv', THRESHOLD_FIELDS, rows, identifier)
+            output_folder, 'thresholds.csv',
+            _fields_with_optional_polarity(THRESHOLD_FIELDS, rows),
+            rows, identifier)
     if peaks:
         rows = []
-        for path in paths:
-            rows.extend(peak_rows(path))
+        for path, polarities in selections.items():
+            rows.extend(peak_rows(path, polarities, include_polarity))
         written['peaks'] = _write_csv(output_folder, 'peaks.csv', peak_fields(rows), rows, identifier)
     if waveforms:
         rows = []
-        for path in paths:
-            rows.extend(waveform_rows(path))
+        for path, polarities in selections.items():
+            rows.extend(waveform_rows(path, polarities, include_polarity))
         written['waveforms'] = _write_csv(
-            output_folder, 'waveforms.csv', WAVEFORM_FIELDS, rows, identifier)
+            output_folder, 'waveforms.csv',
+            _fields_with_optional_polarity(WAVEFORM_FIELDS, rows),
+            rows, identifier)
     return written
 
 
@@ -75,6 +83,37 @@ def export_source_files(paths, output_folder, identifier=''):
         'waveforms': _write_csv(
             output_folder, 'waveforms.csv', WAVEFORM_FIELDS, rows, identifier)
     }
+
+
+def export_selections(paths, analyze_each_polarity=None):
+    analyze_each_polarity = (
+        _analyze_each_polarity_enabled()
+        if analyze_each_polarity is None else analyze_each_polarity
+    )
+    selections = {}
+    include_polarity = False
+    for path in paths:
+        analyses = analysis_rows(path)
+        polarities = [row['polarity'] for row in analyses]
+        has_separate = any(p in polarities for p in ('condensation', 'rarefaction'))
+        if analyze_each_polarity:
+            unsupported = next((row for row in analyses
+                                if not row['supports_polarities']), None)
+            if unsupported is not None:
+                raise ValueError(polarity_unsupported_message(unsupported['source_path']))
+            selected = [p for p in ('condensation', 'rarefaction') if p in polarities]
+            if selected:
+                include_polarity = True
+            elif 'average' in polarities:
+                selected = ['average']
+            else:
+                selected = []
+        else:
+            selected = ['average'] if 'average' in polarities else []
+            if selected and has_separate and any(row['supports_polarities'] for row in analyses):
+                include_polarity = True
+        selections[path] = selected
+    return selections, include_polarity
 
 
 def export_model_waveforms(model, output_folder=None):
@@ -133,37 +172,55 @@ def _load_source_model(path):
                    noiseFloor=False, t_min=0, t_max=0)
 
 
-def threshold_rows(path):
+def threshold_rows(path, polarities=None, include_polarity=False):
+    polarities = _selected_polarities(polarities)
+    if not polarities:
+        return []
     with _connect(path) as db:
-        rows = db.execute('''
-            SELECT filename, frequency, threshold_method, threshold
+        where, params = _polarity_filter('a', polarities)
+        rows = db.execute(f'''
+            SELECT filename, polarity, frequency, threshold_method, threshold
             FROM analysis
-            ORDER BY filename, frequency
-        ''')
-        return [{
+            AS a
+            WHERE {where}
+            ORDER BY filename, polarity, frequency
+        ''', params)
+        result = [{
             'filename': row['filename'],
+            'polarity': row['polarity'],
             'frequency': row['frequency'],
             'estimation_method': row['threshold_method'],
             'threshold': row['threshold'],
         } for row in rows]
+        return _strip_polarity(result, include_polarity)
 
 
-def peak_rows(path):
+def peak_rows(path, polarities=None, include_polarity=False):
+    polarities = _selected_polarities(polarities)
+    if not polarities:
+        return []
     with _connect(path) as db:
-        rows = db.execute('''
-            SELECT a.filename, l.level, a.frequency, p.wave_label,
+        where, params = _polarity_filter('a', polarities)
+        rows = db.execute(f'''
+            SELECT a.filename, a.polarity, l.level, a.frequency, p.wave_label,
                    p.point_type, p.latency, p.amplitude
             FROM peaks AS p
             JOIN levels AS l ON l.id = p.level_id
             JOIN analysis AS a ON a.id = l.analysis_id
-            ORDER BY a.filename, a.frequency, l.level, p.wave_label, p.point_type
-        ''')
+            WHERE {where}
+            ORDER BY a.filename, a.polarity, p.wave_label, a.frequency,
+                     l.level, p.point_type
+        ''', params)
         result = {}
         for row in rows:
             data = dict(row)
-            key = (data['filename'], data['level'], data['frequency'], data['wave_label'])
+            key = (
+                data['filename'], data['polarity'], data['level'],
+                data['frequency'], data['wave_label'],
+            )
             point = result.setdefault(key, {
                 'filename': data['filename'],
+                'polarity': data['polarity'],
                 'level': data['level'],
                 'frequency': data['frequency'],
                 'wave_label': data['wave_label'],
@@ -176,25 +233,41 @@ def peak_rows(path):
                 amplitude = None
             point[f'{prefix}_amplitude'] = amplitude
             point[f'{prefix}_latency'] = latency
-        return list(result.values())
+        return _strip_polarity(list(result.values()), include_polarity)
 
 
 def peak_fields(rows):
     fields = list(PEAK_FIELDS)
+    fields = _fields_with_optional_polarity(fields, rows)
     if any('n_amplitude' in row or 'n_latency' in row for row in rows):
         fields.extend(['n_amplitude', 'n_latency'])
     return fields
 
 
-def waveform_rows(path):
+def waveform_rows(path, polarities=None, include_polarity=False):
+    polarities = _selected_polarities(polarities)
+    if not polarities:
+        return []
     with _connect(path) as db:
-        rows = db.execute('''
-            SELECT a.filename, l.level, a.frequency, a.filter_label AS filter,
-                   w.latency, w.amplitude
+        where, params = _polarity_filter('a', polarities)
+        rows = db.execute(f'''
+            SELECT a.filename, a.polarity, l.level, a.frequency,
+                   a.filter_label AS filter, w.latency, w.amplitude
             FROM waveform_points AS w
             JOIN levels AS l ON l.id = w.level_id
             JOIN analysis AS a ON a.id = l.analysis_id
-            ORDER BY a.filename, a.frequency, l.level, w.sample_index
+            WHERE {where}
+            ORDER BY a.filename, a.polarity, a.frequency, l.level, w.sample_index
+        ''', params)
+        return _strip_polarity([dict(row) for row in rows], include_polarity)
+
+
+def analysis_rows(path):
+    with _connect(path) as db:
+        rows = db.execute('''
+            SELECT polarity, supports_polarities, source_path
+            FROM analysis
+            ORDER BY filename, frequency, polarity
         ''')
         return [dict(row) for row in rows]
 
@@ -210,6 +283,39 @@ def _connect(path):
         db.close()
         raise ValueError(f'Not a valid analysis SQLite file: {path}') from e
     return db
+
+
+def _analyze_each_polarity_enabled():
+    showallpol = DefaultValueHolder('PhysiologyNotebook', 'showallpol')
+    showallpol.SetVariables(value=False)
+    showallpol.InitFromConfig()
+    return showallpol.value
+
+
+def _selected_polarities(polarities):
+    if polarities is None:
+        return ['average']
+    return list(polarities)
+
+
+def _polarity_filter(alias, polarities):
+    placeholders = ', '.join(['?'] * len(polarities))
+    return f'{alias}.polarity IN ({placeholders})', polarities
+
+
+def _strip_polarity(rows, include_polarity):
+    if include_polarity:
+        return rows
+    for row in rows:
+        row.pop('polarity', None)
+    return rows
+
+
+def _fields_with_optional_polarity(fields, rows):
+    fields = list(fields)
+    if any('polarity' in row for row in rows):
+        fields.insert(1, 'polarity')
+    return fields
 
 
 def _write_csv(output_folder, filename, fields, rows, identifier=''):

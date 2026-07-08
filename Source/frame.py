@@ -22,9 +22,9 @@ from version import APP_VERSION
 import filter_EPL_LabVIEW_ABRIO_File as peakio
 from datatype import GetABRDataType, ABRDataType, ABRStimPolarity, Point
 from datafile import (
-    POLARITY_UNSUPPORTED_MESSAGE,
     get_expt_id,
     get_stim_freq,
+    polarity_unsupported_message,
     supports_stimulus_polarities,
 )
 
@@ -173,7 +173,7 @@ class PhysiologyNotebook(wx.aui.AuiNotebook):
             if not showallpol.value:
                 self.loadser(d, invert, ABRStimPolarity.Avg, useNoiseFloor.value)
             elif not supports_stimulus_polarities(d):
-                dlg = wx.MessageDialog(self, POLARITY_UNSUPPORTED_MESSAGE,
+                dlg = wx.MessageDialog(self, polarity_unsupported_message(d),
                                        'File Error', wx.OK | wx.ICON_ERROR)
                 dlg.ShowModal()
                 dlg.Destroy()

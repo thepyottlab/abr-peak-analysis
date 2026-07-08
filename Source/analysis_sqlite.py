@@ -7,47 +7,46 @@ import numpy
 
 from config import DefaultValueHolder, expected_peak_count, MAX_PEAKS, peak_visibility_defaults
 from contextlib import closing
+from datafile import supports_stimulus_polarities
 from datatype import ABRStimPolarity, Point, ThrSource, Th
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 def analysis_path(model):
-    filename = model.filename
-    if model.stimPol == ABRStimPolarity.Condensation:
-        filename += '-cond'
-    if model.stimPol == ABRStimPolarity.Rarefaction:
-        filename += '-rare'
-    return filename + '-analyzed.sqlite'
+    return model.filename + '-analyzed.sqlite'
 
 
 def have_analysis(model):
-    return os.path.isfile(analysis_path(model))
+    path = analysis_path(model)
+    if not os.path.isfile(path):
+        return False
+    try:
+        with sqlite3.connect(path) as db:
+            row = db.execute(
+                'SELECT 1 FROM analysis WHERE polarity = ? LIMIT 1',
+                (_polarity_name(model.stimPol),),
+            ).fetchone()
+            return row is not None
+    except sqlite3.Error:
+        return False
 
 
 def save(model):
     path = analysis_path(model)
 
-    overwrite = DefaultValueHolder(
-        'PhysiologyNotebook',
-        'overwriteOnSave'
-    )
-    overwrite.SetVariables(value=False)
-    overwrite.InitFromConfig()
-
     tmp_path = path + '.tmp'
     if os.path.exists(tmp_path):
         os.unlink(tmp_path)
 
+    polarity = _polarity_name(model.stimPol)
     with closing(sqlite3.connect(tmp_path)) as db:
         with db:
             db.execute('PRAGMA foreign_keys = ON')
             _create_schema(db)
+            _copy_existing_analyses(path, db, polarity)
             _save_model(db, model)
-
-    if os.path.exists(path) and not overwrite.value:
-        _archive_existing(path)
 
     os.replace(tmp_path, path)
     return 'Saved data to %s' % path
@@ -55,14 +54,15 @@ def save(model):
 
 def save_selected(model, thresholds=False, peaks=False, waveforms=True):
     path = analysis_path(model)
-    preserved_threshold = None
+    polarity = _polarity_name(model.stimPol)
+    preserved_threshold = None if thresholds else (None, '', '')
     preserved_peaks = []
 
     if os.path.exists(path):
         if not thresholds:
-            preserved_threshold = _read_threshold(path)
+            preserved_threshold = _read_threshold(path, polarity) or preserved_threshold
         if not peaks:
-            preserved_peaks = _read_peak_rows(path)
+            preserved_peaks = _read_peak_rows(path, polarity)
 
     tmp_path = path + '.tmp'
     if os.path.exists(tmp_path):
@@ -72,6 +72,7 @@ def save_selected(model, thresholds=False, peaks=False, waveforms=True):
         with db:
             db.execute('PRAGMA foreign_keys = ON')
             _create_schema(db)
+            _copy_existing_analyses(path, db, polarity)
             _save_model(
                 db,
                 model,
@@ -96,21 +97,22 @@ def selected_conflicts(model, thresholds=False, peaks=False):
 
 
 def stored_datasets(model):
-    return stored_datasets_at_path(analysis_path(model))
+    return stored_datasets_at_path(analysis_path(model), model.stimPol)
 
 
-def stored_datasets_at_path(path):
+def stored_datasets_at_path(path, polarity=ABRStimPolarity.Avg):
     stored = {'thresholds': False, 'peaks': False}
     if not os.path.isfile(path):
         return stored
 
+    polarity = _polarity_name(polarity)
     with sqlite3.connect(path) as db:
         db.row_factory = sqlite3.Row
         row = db.execute('''
-            SELECT threshold, threshold_source, threshold_method
+            SELECT id, threshold, threshold_source, threshold_method
             FROM analysis
-            WHERE id = 1
-        ''').fetchone()
+            WHERE polarity = ?
+        ''', (polarity,)).fetchone()
         if row is not None:
             stored['thresholds'] = (
                 row['threshold'] is not None or
@@ -118,8 +120,13 @@ def stored_datasets_at_path(path):
                 bool(row['threshold_method'])
             )
 
-        row = db.execute('SELECT COUNT(*) AS count FROM peaks').fetchone()
-        stored['peaks'] = row is not None and row['count'] > 0
+            row = db.execute('''
+                SELECT COUNT(*) AS count
+                FROM peaks AS p
+                JOIN levels AS l ON l.id = p.level_id
+                WHERE l.analysis_id = ?
+            ''', (row['id'],)).fetchone()
+            stored['peaks'] = row is not None and row['count'] > 0
 
     return stored
 
@@ -131,17 +138,21 @@ def restore(model):
 
     with sqlite3.connect(path) as db:
         db.row_factory = sqlite3.Row
+        polarity = _polarity_name(model.stimPol)
         analysis = db.execute('''
-            SELECT threshold, threshold_source, threshold_method
+            SELECT id, threshold, threshold_source, threshold_method
             FROM analysis
-            WHERE id = 1
-        ''').fetchone()
+            WHERE polarity = ?
+        ''', (polarity,)).fetchone()
         if analysis is None:
             raise IOError('Could not parse %s' % path)
 
-        peak_count_row = db.execute(
-            'SELECT max(wave_label) AS peak_count FROM peaks'
-        ).fetchone()
+        peak_count_row = db.execute('''
+            SELECT max(p.wave_label) AS peak_count
+            FROM peaks AS p
+            JOIN levels AS l ON l.id = p.level_id
+            WHERE l.analysis_id = ?
+        ''', (analysis['id'],)).fetchone()
         peak_count = max(expected_peak_count(), peak_count_row['peak_count'] or 0)
         n = len(model.series)
         pind = numpy.full((n, peak_count), -1, dtype=int)
@@ -151,8 +162,9 @@ def restore(model):
             SELECT l.level, p.wave_label, p.point_type, p.sample_index
             FROM peaks AS p
             JOIN levels AS l ON l.id = p.level_id
+            WHERE l.analysis_id = ?
             ORDER BY l.position, p.wave_label, p.point_type
-        ''')
+        ''', (analysis['id'],))
         for row in rows:
             i = _level_index(model, row['level'])
             if i is None:
@@ -195,18 +207,20 @@ def current_filter_settings():
 def _create_schema(db):
     db.executescript('''
         CREATE TABLE analysis (
-            id INTEGER PRIMARY KEY CHECK (id = 1),
+            id INTEGER PRIMARY KEY,
             schema_version INTEGER NOT NULL,
             source_path TEXT NOT NULL,
             filename TEXT NOT NULL,
             frequency REAL,
             polarity TEXT NOT NULL,
+            supports_polarities INTEGER NOT NULL,
             filter_label TEXT NOT NULL,
             filter_settings TEXT NOT NULL,
             threshold REAL,
             threshold_source TEXT NOT NULL,
             threshold_method TEXT NOT NULL,
-            saved_at TEXT NOT NULL
+            saved_at TEXT NOT NULL,
+            UNIQUE(source_path, polarity)
         );
 
         CREATE TABLE levels (
@@ -215,7 +229,7 @@ def _create_schema(db):
             position INTEGER NOT NULL,
             level REAL NOT NULL,
             sampling_rate REAL NOT NULL,
-            FOREIGN KEY (analysis_id) REFERENCES analysis(id)
+            FOREIGN KEY (analysis_id) REFERENCES analysis(id) ON DELETE CASCADE
         );
 
         CREATE TABLE peaks (
@@ -226,7 +240,7 @@ def _create_schema(db):
             sample_index INTEGER NOT NULL,
             latency REAL,
             amplitude REAL,
-            FOREIGN KEY (level_id) REFERENCES levels(id)
+            FOREIGN KEY (level_id) REFERENCES levels(id) ON DELETE CASCADE
         );
 
         CREATE TABLE waveform_points (
@@ -235,7 +249,7 @@ def _create_schema(db):
             latency REAL NOT NULL,
             amplitude REAL NOT NULL,
             PRIMARY KEY (level_id, sample_index),
-            FOREIGN KEY (level_id) REFERENCES levels(id)
+            FOREIGN KEY (level_id) REFERENCES levels(id) ON DELETE CASCADE
         );
     ''')
 
@@ -245,18 +259,19 @@ def _save_model(db, model, save_peaks=True, save_waveforms=True,
     settings = getattr(model, 'filter_settings', None) or current_filter_settings()
     if threshold_record is None:
         threshold_record = _model_threshold_record(model)
-    db.execute('''
+    cur = db.execute('''
         INSERT INTO analysis (
-            id, schema_version, source_path, filename, frequency, polarity,
-            filter_label, filter_settings, threshold, threshold_source,
-            threshold_method, saved_at
-        ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            schema_version, source_path, filename, frequency, polarity,
+            supports_polarities, filter_label, filter_settings, threshold,
+            threshold_source, threshold_method, saved_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (
         SCHEMA_VERSION,
         model.filename,
         os.path.splitext(os.path.basename(model.filename))[0],
         model.freq,
         _polarity_name(model.stimPol),
+        int(_model_supports_polarities(model)),
         filter_label(settings),
         json.dumps(settings, sort_keys=True),
         threshold_record[0],
@@ -264,14 +279,15 @@ def _save_model(db, model, save_peaks=True, save_waveforms=True,
         threshold_record[2],
         time.strftime('%Y-%m-%dT%H:%M:%S'),
     ))
+    analysis_id = cur.lastrowid
 
     level_ids = {}
     level_ids_by_level = []
     for position, waveform in enumerate(model.series):
         cur = db.execute('''
             INSERT INTO levels (analysis_id, position, level, sampling_rate)
-            VALUES (1, ?, ?, ?)
-        ''', (position, waveform.level, waveform.fs))
+            VALUES (?, ?, ?, ?)
+        ''', (analysis_id, position, waveform.level, waveform.fs))
         level_ids[waveform] = cur.lastrowid
         level_ids_by_level.append((waveform.level, cur.lastrowid))
 
@@ -283,20 +299,86 @@ def _save_model(db, model, save_peaks=True, save_waveforms=True,
         _save_waveform_points(db, model, level_ids)
 
 
-def _read_threshold(path):
+def _copy_existing_analyses(path, db, skipped_polarity):
+    if not os.path.exists(path):
+        return
+
+    with sqlite3.connect(path) as source:
+        source.row_factory = sqlite3.Row
+        analyses = source.execute('''
+            SELECT id, schema_version, source_path, filename, frequency,
+                   polarity, supports_polarities, filter_label, filter_settings,
+                   threshold, threshold_source, threshold_method, saved_at
+            FROM analysis
+            WHERE polarity != ?
+            ORDER BY id
+        ''', (skipped_polarity,)).fetchall()
+
+        analysis_ids = [row['id'] for row in analyses]
+        db.executemany('''
+            INSERT INTO analysis (
+                id, schema_version, source_path, filename, frequency, polarity,
+                supports_polarities, filter_label, filter_settings, threshold,
+                threshold_source, threshold_method, saved_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', [tuple(row) for row in analyses])
+
+        for analysis_id in analysis_ids:
+            levels = source.execute('''
+                SELECT id, analysis_id, position, level, sampling_rate
+                FROM levels
+                WHERE analysis_id = ?
+                ORDER BY id
+            ''', (analysis_id,)).fetchall()
+            db.executemany('''
+                INSERT INTO levels (
+                    id, analysis_id, position, level, sampling_rate
+                ) VALUES (?, ?, ?, ?, ?)
+            ''', [tuple(row) for row in levels])
+
+            peaks = source.execute('''
+                SELECT p.id, p.level_id, p.wave_label, p.point_type,
+                       p.sample_index, p.latency, p.amplitude
+                FROM peaks AS p
+                JOIN levels AS l ON l.id = p.level_id
+                WHERE l.analysis_id = ?
+                ORDER BY p.id
+            ''', (analysis_id,)).fetchall()
+            db.executemany('''
+                INSERT INTO peaks (
+                    id, level_id, wave_label, point_type, sample_index,
+                    latency, amplitude
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', [tuple(row) for row in peaks])
+
+            waveforms = source.execute('''
+                SELECT w.level_id, w.sample_index, w.latency, w.amplitude
+                FROM waveform_points AS w
+                JOIN levels AS l ON l.id = w.level_id
+                WHERE l.analysis_id = ?
+                ORDER BY w.level_id, w.sample_index
+            ''', (analysis_id,)).fetchall()
+            db.executemany('''
+                INSERT INTO waveform_points (
+                    level_id, sample_index, latency, amplitude
+                ) VALUES (?, ?, ?, ?)
+            ''', [tuple(row) for row in waveforms])
+
+
+def _read_threshold(path, polarity):
     with sqlite3.connect(path) as db:
         db.row_factory = sqlite3.Row
         row = db.execute('''
             SELECT threshold, threshold_source, threshold_method
             FROM analysis
-            WHERE id = 1
-        ''').fetchone()
+            WHERE polarity = ?
+        ''', (polarity,)).fetchone()
         if row is None:
             return None
         return (row['threshold'], row['threshold_source'], row['threshold_method'])
 
 
-def _read_peak_rows(path):
+def _read_peak_rows(path, polarity):
     with sqlite3.connect(path) as db:
         db.row_factory = sqlite3.Row
         rows = db.execute('''
@@ -304,8 +386,10 @@ def _read_peak_rows(path):
                    p.latency, p.amplitude
             FROM peaks AS p
             JOIN levels AS l ON l.id = p.level_id
+            JOIN analysis AS a ON a.id = l.analysis_id
+            WHERE a.polarity = ?
             ORDER BY l.position, p.wave_label, p.point_type
-        ''')
+        ''', (polarity,))
         return [dict(row) for row in rows]
 
 
@@ -415,7 +499,22 @@ def _threshold_method(model):
     return model.best_fit_type or ''
 
 
+def _model_supports_polarities(model):
+    if model.stimPol in (ABRStimPolarity.Condensation, ABRStimPolarity.Rarefaction):
+        return True
+    return supports_stimulus_polarities(model.filename)
+
+
 def _polarity_name(polarity):
+    names = {
+        ABRStimPolarity.Avg: 'average',
+        ABRStimPolarity.Condensation: 'condensation',
+        ABRStimPolarity.Rarefaction: 'rarefaction',
+    }
+    if polarity in names:
+        return names[polarity]
+    if str(polarity).lower() == 'avg':
+        return 'average'
     try:
         return polarity.name.lower()
     except AttributeError:

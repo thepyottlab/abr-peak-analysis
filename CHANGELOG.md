@@ -5,6 +5,7 @@
 - longer recordings not showing appropriate time intervals
 - condensation/rarefaction analysis not loading correct data for certain file formats
 - condensation/rarefaction analysis spawning additional windows even when the file format only contains sweep average data
+- per-stimulus polarity analysis not showing correctly in export
 - Eclipse showing 'Click' rather than '0' in the stimulus frequency field
 - files additionally showing average sweeps when 'Analyze each stimulus polarity' is enabled
 

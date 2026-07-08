@@ -11,10 +11,13 @@ from datatype import abrseries
 from datatype import ABRDataType
 from datatype import ABRStimPolarity
 
-POLARITY_UNSUPPORTED_MESSAGE = (
-    "Data does not contain condensation/rarefaction sweep averages. "
-    "Please disable 'Analyze each stimulus polarity'"
-)
+def polarity_unsupported_message(fname):
+    filename = os.path.splitext(os.path.basename(fname))[0]
+    return (
+        "%s does not support separate analysis of condensation and "
+        "rarefaction stimulus polarity sweep averages. Please disable "
+        "'Analyze each stimulus polarity'."
+    ) % filename
 
 
 def supports_stimulus_polarities(fname):
@@ -107,7 +110,7 @@ def apply_time_range(waveforms, t_min, t_max, fs):
 
 def loadabr(fname, invert=False, filter=False, fdict=None, polarity=ABRStimPolarity.Avg, noiseFloor=False, t_min=0, t_max=0):
     if polarity != ABRStimPolarity.Avg and not supports_stimulus_polarities(fname):
-        raise IOError(POLARITY_UNSUPPORTED_MESSAGE)
+        raise IOError(polarity_unsupported_message(fname))
 
     f, ext = os.path.splitext(fname)
     if ext == '.csv':
@@ -429,7 +432,7 @@ def load_fast_abr_data(fname, invert=False, filter=False, fdict=None, polarity=A
 
 def load_custom_abr_data(fname, invert=False, filter=False, fdict=None, polarity=ABRStimPolarity.Avg, noiseFloor=False, t_min=0, t_max=0):
     if polarity != ABRStimPolarity.Avg:
-        raise IOError(POLARITY_UNSUPPORTED_MESSAGE)
+        raise IOError(polarity_unsupported_message(fname))
 
     p_level = re.compile('Levels=([\-0-9.; Inf]+)')
     p_fs = re.compile('Response.Fs \(Hz\)=([0-9.]+)')
@@ -527,7 +530,7 @@ def loadclinicalabr(fname, invert=False, filter=False, fdict=None, t_min=0, t_ma
                     data = data[[columns.index('avg')], :]
             else:
                 if polarity != ABRStimPolarity.Avg:
-                    raise IOError(POLARITY_UNSUPPORTED_MESSAGE)
+                    raise IOError(polarity_unsupported_message(fname))
                 if numCols > 4:
                     data = data[3:5, :]
                 else:

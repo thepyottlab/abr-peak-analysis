@@ -13,7 +13,7 @@ from analysis_helpers import (
     visible_troughs_enabled,
 )
 from config import DefaultValueHolder
-from datafile import POLARITY_UNSUPPORTED_MESSAGE, supports_stimulus_polarities
+from datafile import polarity_unsupported_message, supports_stimulus_polarities
 from datatype import ABRStimPolarity
 from source_files import SOURCE_WILDCARD, find_source_files, is_source_file
 
@@ -79,7 +79,7 @@ def _polarities_for(path):
     if not showallpol.value:
         return [ABRStimPolarity.Avg]
     if not supports_stimulus_polarities(path):
-        raise ValueError(POLARITY_UNSUPPORTED_MESSAGE)
+        raise ValueError(polarity_unsupported_message(path))
     return [
         ABRStimPolarity.Condensation,
         ABRStimPolarity.Rarefaction,
