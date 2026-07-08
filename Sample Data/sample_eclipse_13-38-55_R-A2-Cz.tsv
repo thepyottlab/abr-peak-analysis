@@ -1,9 +1,9 @@
-[Eclipse ABR]
+[CUSTOM ABR]
 Date=5/12/2024 01:38 PM
 Levels=0;
 [Params]
-Stimulus.Frequency (kHz)=Click
-Stimulus.Waveform=Click
+Stimulus.Frequency (kHz)=0.0
+Stimulus.Waveform=CLICK
 Response.Window (ms)=10.0
 Response.Fs (Hz)=20000.0
 [DATA]

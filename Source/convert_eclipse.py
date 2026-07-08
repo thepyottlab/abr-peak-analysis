@@ -74,7 +74,7 @@ class TSVTemplate(object):
         levels_str = ';'.join(str(l) for l in self.levels) + ';'
 
         lines = [
-            self._header_line('[Eclipse ABR]', t),
+            self._header_line('[CUSTOM ABR]', t),
             self._header_line(f'Date={self.date}', t),
             self._header_line(f'Levels={levels_str}', t),
             self._header_line('[Params]', t),
@@ -154,6 +154,16 @@ def to_numeric(value):
         return float(value)
     except (TypeError, ValueError):
         return np.nan
+
+
+def stimulus_fields(stim_mode):
+    stim_mode = str(stim_mode).strip()
+    if stim_mode.lower() == 'click':
+        return 0.0, 'CLICK'
+    frequency = to_numeric(stim_mode)
+    if not np.isnan(frequency):
+        return frequency, 'FREQ'
+    return stim_mode, stim_mode
 
 
 def split_datetime(value):
@@ -312,6 +322,7 @@ def unique_path(path):
 
 def write_record(record, out_path):
     date_str, _ = record_datetime_parts(record)
+    stimulus_frequency, stimulus_waveform = stimulus_fields(record.Stim_Mode)
 
     # Sampling rate from sampling period (ms)
     sample_interval = to_numeric(record.Sampl_Interval)  # ms
@@ -332,8 +343,8 @@ def write_record(record, out_path):
     template = TSVTemplate(
         date=date_str,
         levels=levels,
-        stimulus_frequency=record.Stim_Mode,
-        stimulus_waveform=record.Stim_Mode,
+        stimulus_frequency=stimulus_frequency,
+        stimulus_waveform=stimulus_waveform,
         response_window=response_window,
         response_fs=response_fs,
         data=raw_array,

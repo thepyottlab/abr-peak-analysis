@@ -1,4 +1,17 @@
 ## Changelog
+### V2.1.0 (TBD)
+#### Fixed
+- certain file formats not loading
+- longer recordings not showing appropriate time intervals
+- condensation/rarefaction analysis not loading correct data for certain file formats
+- condensation/rarefaction analysis spawning additional windows even when the file format only contains sweep average data
+- Eclipse showing 'Click' rather than '0' in the stimulus frequency field
+- files additionally showing average sweeps when 'Analyze each stimulus polarity' is enabled
+
+#### Added
+- option to ignore update
+- update checking for portable installation
+
 ### V2.0.0 (2026-07-07)
 #### Fixed
 - bug in which filter sampling rate was not normalized by Nyquist frequency

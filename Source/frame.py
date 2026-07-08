@@ -21,7 +21,12 @@ import updater
 from version import APP_VERSION
 import filter_EPL_LabVIEW_ABRIO_File as peakio
 from datatype import GetABRDataType, ABRDataType, ABRStimPolarity, Point
-from datafile import get_expt_id, get_stim_freq
+from datafile import (
+    POLARITY_UNSUPPORTED_MESSAGE,
+    get_expt_id,
+    get_stim_freq,
+    supports_stimulus_polarities,
+)
 
 from audiogram import load_audiogram
 
@@ -165,11 +170,15 @@ class PhysiologyNotebook(wx.aui.AuiNotebook):
 
         wx.Cursor(wx.StockCursor(wx.CURSOR_WAIT))
         for d in data:
-            dtype = GetABRDataType(d)
-            if dtype == ABRDataType.Clinical or not showallpol.value:
+            if not showallpol.value:
                 self.loadser(d, invert, ABRStimPolarity.Avg, useNoiseFloor.value)
+            elif not supports_stimulus_polarities(d):
+                dlg = wx.MessageDialog(self, POLARITY_UNSUPPORTED_MESSAGE,
+                                       'File Error', wx.OK | wx.ICON_ERROR)
+                dlg.ShowModal()
+                dlg.Destroy()
             else:
-                pol = [ABRStimPolarity.Avg, ABRStimPolarity.Condensation, ABRStimPolarity.Rarefaction]
+                pol = [ABRStimPolarity.Condensation, ABRStimPolarity.Rarefaction]
                 for p in pol:               
                     self.loadser(d, invert, p)
         wx.Cursor(wx.StockCursor(wx.CURSOR_DEFAULT))

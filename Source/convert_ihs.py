@@ -73,7 +73,7 @@ class TSVTemplate(object):
         levels_str = ';'.join(str(l) for l in self.levels) + ';'
 
         lines = [
-            self._header_line('[IHS ABR]', t),
+            self._header_line('[CUSTOM ABR]', t),
             self._header_line(f'Date={self.date}', t),
             self._header_line(f'Levels={levels_str}', t),
             self._header_line('[Params]', t),

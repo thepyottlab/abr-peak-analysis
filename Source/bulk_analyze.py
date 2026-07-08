@@ -13,7 +13,8 @@ from analysis_helpers import (
     visible_troughs_enabled,
 )
 from config import DefaultValueHolder
-from datatype import ABRDataType, ABRStimPolarity, GetABRDataType
+from datafile import POLARITY_UNSUPPORTED_MESSAGE, supports_stimulus_polarities
+from datatype import ABRStimPolarity
 from source_files import SOURCE_WILDCARD, find_source_files, is_source_file
 
 
@@ -26,7 +27,13 @@ def bulk_analyze_files(paths, thresholds=True, peaks=True, conflict_handler=None
     apply_action = None
 
     for path in paths:
-        for polarity in _polarities_for(path):
+        try:
+            polarities = _polarities_for(path)
+        except Exception as e:
+            result['errors'].append((path, str(e)))
+            continue
+
+        for polarity in polarities:
             try:
                 model = load_model(path, polarity=polarity,
                                    useNoiseFloor=_use_noise_floor())
@@ -69,10 +76,11 @@ def _polarities_for(path):
     showallpol = DefaultValueHolder('PhysiologyNotebook', 'showallpol')
     showallpol.SetVariables(value=False)
     showallpol.InitFromConfig()
-    if GetABRDataType(path) == ABRDataType.Clinical or not showallpol.value:
+    if not showallpol.value:
         return [ABRStimPolarity.Avg]
+    if not supports_stimulus_polarities(path):
+        raise ValueError(POLARITY_UNSUPPORTED_MESSAGE)
     return [
-        ABRStimPolarity.Avg,
         ABRStimPolarity.Condensation,
         ABRStimPolarity.Rarefaction,
     ]

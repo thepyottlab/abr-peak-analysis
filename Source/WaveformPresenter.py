@@ -61,9 +61,22 @@ class WaveformPresenter(object):
                     w.saved_points[(point_type, j+1)] = int(indices[k, j])
 
     @staticmethod
-    def _configure_time_axis(axis, add_gridlines=False):
-        axis.xaxis.set_major_locator(ticker.MultipleLocator(1.0))
-        axis.xaxis.set_minor_locator(ticker.MultipleLocator(0.5))
+    def _time_tick_interval(window_ms):
+        scale = 1
+        while True:
+            for limit, interval in ((32, 1), (64, 2), (80, 4), (160, 5)):
+                if window_ms <= limit * scale:
+                    return interval * scale
+            scale *= 10
+
+    @staticmethod
+    def _configure_time_axis(axis, add_gridlines=False, window_ms=None):
+        if window_ms is None:
+            xmin, xmax = axis.get_xlim()
+            window_ms = xmax - xmin
+        major_interval = WaveformPresenter._time_tick_interval(window_ms)
+        axis.xaxis.set_major_locator(ticker.MultipleLocator(major_interval))
+        axis.xaxis.set_minor_locator(ticker.MultipleLocator(major_interval / 2.0))
         axis.xaxis.set_minor_formatter(ticker.NullFormatter())
         axis.tick_params(axis='x', which='minor', length=0)
         axis.xaxis.grid(False, which='both')
@@ -96,7 +109,7 @@ class WaveformPresenter(object):
         elif self.model.dataType == ABRDataType.CFTS:
             xMax = self.model.Tmax
         self.view.subplot.axis(xmax=xMax)
-        self._configure_time_axis(self.view.subplot, self._add_gridlines())
+        self._configure_time_axis(self.view.subplot, self._add_gridlines(), xMax)
         self.current = len(self.model.series)-1
         self.update_labels()
 
@@ -197,7 +210,7 @@ class WaveformPresenter(object):
                 xMax = self.model.Tmax
                 
             self.view.subplot.axis(xmax=xMax)
-            self._configure_time_axis(self.view.subplot, self._add_gridlines())
+            self._configure_time_axis(self.view.subplot, self._add_gridlines(), xMax)
             if self.ann != None:
                 self.ann.remove()
                 self.ann = None

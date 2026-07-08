@@ -5,7 +5,16 @@
 
 ABR Peak Analysis is a desktop tool for inspecting auditory brainstem response or VSEP recordings, filtering recordings, marking peaks/troughs, estimating thresholds, and exporting results.
 
-This is a fork by The Pyott Lab of the EPL-maintained version of ABR Peak Analysis, originally written by Brad Buran.
+This is a fork by The Pyott Lab of the EPL-maintained version of ABR Peak Analysis, originally written by Brad Buran. This fork extends functionality of the app to several previously unsupported file formats and adds various features, such as:
+- Bulk analysis through a GUI.
+- Export of threshold, peak, or waveform dataframes from analyzed ABR files, ready for analysis in R or other statistics software.
+- Selecting the number of peaks to detect and selecting which peaks/troughs should be included.
+- Automated updates.
+- Setting filter order.
+
+A full list of changes can be seen in the [changelog](CHANGELOG.md) from V2.0.0. 
+
+If the ABR format used by your lab is currently not supported by this application, please open an issue or send me an email.
 
 ## Installation
 
