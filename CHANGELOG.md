@@ -8,6 +8,7 @@
 - per-stimulus polarity analysis not showing correctly in export
 - Eclipse showing 'Click' rather than '0' in the stimulus frequency field
 - files additionally showing average sweeps when 'Analyze each stimulus polarity' is enabled
+- options menu item spacing
 
 #### Added
 - option to ignore update

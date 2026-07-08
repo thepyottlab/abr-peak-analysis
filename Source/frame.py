@@ -1555,6 +1555,7 @@ class PhysiologyOptions(wx.Dialog):
         self.Create(parent, id, title)
 
         sizer = wx.BoxSizer(wx.VERTICAL)
+        same_row_item_gap = 10
         
         #Default directory
         dbox = wx.StaticBox(self, wx.ID_ANY, "Default Directory")
@@ -1579,6 +1580,7 @@ class PhysiologyOptions(wx.Dialog):
         self.ftype.Bind(wx.EVT_CHOICE, self.ftype_choice)
 
         #Highpass
+        box.AddSpacer(same_row_item_gap)
         label = wx.StaticText(self, wx.ID_ANY, "Highpass cutoff (Hz):")
         box.Add(label, 0, wx.ALL, 5)
         self.fh = wx.TextCtrl(self, wx.ID_ANY, str(filter.fh),
@@ -1586,6 +1588,7 @@ class PhysiologyOptions(wx.Dialog):
         box.Add(self.fh, 0, wx.ALL, 5)
 
         #Lowpass
+        box.AddSpacer(same_row_item_gap)
         label = wx.StaticText(self, wx.ID_ANY, "Lowpass cutoff (Hz):")
         box.Add(label, 0, wx.ALL, 5)
         self.fl = wx.TextCtrl(self, wx.ID_ANY, str(filter.fl),
@@ -1594,6 +1597,7 @@ class PhysiologyOptions(wx.Dialog):
         fsizer.Add(box, 0, wx.GROW|wx.ALL, 5)
 
         #Order
+        box.AddSpacer(same_row_item_gap)
         label = wx.StaticText(self, wx.ID_ANY, "Order:")
         box.Add(label, 0, wx.ALL, 5)
         self.ford = wx.TextCtrl(self, wx.ID_ANY, str(filter.N),
@@ -1617,6 +1621,7 @@ class PhysiologyOptions(wx.Dialog):
         wsizer.Add(self.tminb, 0, wx.ALL, 5)
 
         # Custom Tmax
+        wsizer.AddSpacer(same_row_item_gap)
         label = wx.StaticText(self, wx.ID_ANY, "End (ms):")
         wsizer.Add(label, 0, wx.ALL, 5)
         self.tmaxb = wx.TextCtrl(self, wx.ID_ANY, str(self.timeRangeMax.value),
@@ -1634,6 +1639,7 @@ class PhysiologyOptions(wx.Dialog):
         psizer.Add(self.cb, 0, wx.ALL, 5)
 
         #min latency
+        psizer.AddSpacer(same_row_item_gap)
         label = wx.StaticText(self, wx.ID_ANY, "Min latency (ms):")
         psizer.Add(label, 0, wx.ALL, 5)
         self.mlb = wx.TextCtrl(self, wx.ID_ANY, str(minlatency.value),
@@ -1641,6 +1647,7 @@ class PhysiologyOptions(wx.Dialog):
         psizer.Add(self.mlb, 0, wx.ALL, 5)
 
         # baseline window
+        psizer.AddSpacer(same_row_item_gap)
         label = wx.StaticText(self, wx.ID_ANY, "Baseline window (ms):")
         psizer.Add(label, 0, wx.ALL, 5)
         self.blw = wx.TextCtrl(self, wx.ID_ANY, str(baselinewin.value),
@@ -1660,6 +1667,7 @@ class PhysiologyOptions(wx.Dialog):
         osizer.Add(self.nfcb, 0, wx.ALL, 5)
 
         # Overwrite on save
+        osizer.AddSpacer(same_row_item_gap)
         label = wx.StaticText(self, wx.ID_ANY, "Overwrite on save:")
         osizer.Add(label, 0, wx.ALL, 5)
         self.owcb = wx.CheckBox(self, wx.ID_ANY)
@@ -1668,6 +1676,7 @@ class PhysiologyOptions(wx.Dialog):
         osizer.Add(self.owcb, 0, wx.ALL, 5)
 
         # Auto restore previous analysis
+        osizer.AddSpacer(same_row_item_gap)
         label = wx.StaticText(self, wx.ID_ANY, "Auto restore analysis:")
         osizer.Add(label, 0, wx.ALL, 5)
         self.arcb = wx.CheckBox(self, wx.ID_ANY)
