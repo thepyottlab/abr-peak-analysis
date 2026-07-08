@@ -1,7 +1,12 @@
 from pathlib import Path
+import sys
 from textwrap import dedent
 
-from version import APP_VERSION
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
+
+from Source.version import APP_VERSION
 
 
 APP_NAME = "ABR Peak Analysis"
@@ -9,6 +14,7 @@ INTERNAL_NAME = "notebook"
 ORIGINAL_FILENAME = "notebook.exe"
 LANG_CODEPAGE = "040904B0"
 TRANSLATION = "[1033, 1200]"
+DEFAULT_OUTPUT = ROOT / "build" / "pyinstaller" / "windows" / "version_info.txt"
 
 
 def windows_version_tuple(version):
@@ -73,7 +79,5 @@ def write_version_info(path):
 
 
 if __name__ == "__main__":
-    import sys
-
-    output = sys.argv[1] if len(sys.argv) > 1 else "build/version_info.txt"
+    output = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_OUTPUT
     write_version_info(output)

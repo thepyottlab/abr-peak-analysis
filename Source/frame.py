@@ -1432,7 +1432,7 @@ class PhysiologyFrame(PersistentFrame):
         info.Version = APP_VERSION
         info.Copyright = "(C) 2007 Speech and Hearing Bioscience and Technology"
 #        info.WebSite = "http://web.mit.edu/shbt"
-        info.Developers = ["Brad Buran"]
+        info.Developers = ["Brad Buran", "Tom Naber"]
         wx.adv.AboutBox(info)
 
     def OnSetOptions(self, evt):

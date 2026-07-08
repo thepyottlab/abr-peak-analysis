@@ -59,16 +59,17 @@ Install PyInstaller when building standalone application bundles:
 python -m pip install pyinstaller
 ```
 
-Build release artifacts into `Installers/`:
+Build release artifacts into `dist/installers/`:
 
 ```bash
 # macOS Apple Silicon
-cd Source
-./build_mac.sh
+scripts/build-mac.sh
 
 # Windows x64
-cd Source
-build_pc.bat
+scripts\build-windows.bat
+
+# GitHub release
+python scripts/release.py --draft
 ```
 
 ## License

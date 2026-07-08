@@ -12,11 +12,8 @@ I'm pretty sure the only dependencies for this program are:
 Alternatively, python(x,y) contains all of these libraries and more in one
 install (http://www.pythonxy.com/foreword.php).
 
-To "build" a distributable that does not require installation of the above
-libraries, look at py2exe (see "build" and "build-easy" for the code I used to
-create the version that has been distributed around EPL). http://www.py2exe.org/
-.  The one you will want to use for Mac is py2app (which I have not tried to
-use).  http://svn.pythonmac.org/py2app/py2app/trunk/doc/index.html
+To build a distributable that does not require installation of the above
+libraries, use the PyInstaller scripts documented in README.md.
 
 Basic comments to following the code underlying this program.  ABR data is
 stored in an object of type ABRSeries (defined in datatype.py).  A single
@@ -126,4 +123,3 @@ if __name__ == '__main__':
         app.MainLoop()
     except:
         print('wx error')
-        

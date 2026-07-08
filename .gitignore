@@ -1,9 +1,8 @@
-build
-dist
+/build/
+/dist/
 __pycache__
 /Installer/Output
-/Installers/*
-!/Installers/.gitkeep
+/Installers/
 /Source/kpy/kpy.egg-info
 .DS_Store
 .eggs

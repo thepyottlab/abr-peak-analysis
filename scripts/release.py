@@ -5,22 +5,27 @@ To publish a release:
 1. Update `Source/version.py` and add the matching `### vX.Y.Z` section to `CHANGELOG.md`.
 2. Commit the version/changelog/build-script changes.
 3. Build the macOS `.pkg` on macOS and the Windows installer/portable `.exe` files on Windows.
-4. Put all three files in `Installers/`.
-5. Run `python release.py` from the repo root with the GitHub CLI installed and authenticated. Use `python release.py --draft` if you want to review in GitHub before publishing.
+4. Put all three generated files in `dist/installers/`.
+5. Run `python scripts/release.py` from the repo root with the GitHub CLI installed and authenticated.
+   Use `python scripts/release.py --draft` if you want to review in GitHub before publishing.
 """
 
 import argparse
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 
 from Source.version import APP_VERSION
 
 
-ROOT = Path(__file__).resolve().parent
-INSTALLERS = ROOT / "Installers"
+INSTALLERS = ROOT / "dist" / "installers"
 TAG = "v%s" % APP_VERSION
 REPO = "TomNaber/abr-peak-analysis"
 
@@ -64,7 +69,7 @@ def gh_command():
 
     raise SystemExit(
         "GitHub CLI `gh` was not found. Install it, run `gh auth login`, "
-        "then rerun `python release.py`."
+        "then rerun `python scripts/release.py`."
     )
 
 
