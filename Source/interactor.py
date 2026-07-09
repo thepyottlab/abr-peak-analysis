@@ -18,7 +18,7 @@ class KeyInteractor(object):
             390:            'minus'   # numeric keypad
  
         }
-    MENU_KEYCODES = {wx.WXK_RETURN, 43, 45, 61, 388, 390}
+    MENU_KEYCODES = {wx.WXK_RETURN}
     MENU_KEYCHARS = set('deilnprstuwx') | {str(i) for i in range(1, MAX_PEAKS + 1)}
 
     def Install(self, presenter, view):
@@ -45,6 +45,7 @@ class KeyInteractor(object):
                 return
         keycode = evt.GetKeyCode()
         if self.__menu_owns_key(keycode):
+            evt.Skip()
             return
         if keycode in KeyInteractor.KEYS:
             mname = type + KeyInteractor.KEYS[keycode]
