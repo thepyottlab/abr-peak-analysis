@@ -59,7 +59,11 @@ Install PyInstaller when building standalone application bundles:
 python -m pip install pyinstaller
 ```
 
-Build release artifacts into `dist/installers/`:
+On Windows, install Inno Setup 6 to build the setup installer. The build script
+expects it at `C:\Program Files (x86)\Inno Setup 6\ISCC.exe`. Modify that path
+in `scripts\build-windows.bat` if Inno Setup is installed somewhere else.
+
+To build release files into `dist/installers/`:
 
 ```bash
 # macOS Apple Silicon

@@ -23,13 +23,16 @@ python -m PyInstaller --noconfirm --clean ^
     --workpath "%PYINSTALLER_BUILD%\regular" ^
     "%ROOT%\packaging\pyinstaller\notebook.spec" || exit /b 1
 
-if not defined ISCC if exist "%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe" set "ISCC=%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe"
-if not defined ISCC if exist "%ProgramFiles%\Inno Setup 6\ISCC.exe" set "ISCC=%ProgramFiles%\Inno Setup 6\ISCC.exe"
-if not defined ISCC set "ISCC=ISCC.exe"
+set "ISCC_EXE=C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+if not exist "%ISCC_EXE%" (
+    echo Inno Setup 6 not found in "%ISCC_EXE%".
+    echo Please install Inno Setup 6 or modify the path if it is installed in a different location.
+    exit /b 1
+)
 
 echo Building Windows setup installer...
-"%ISCC%" "%ROOT%\packaging\windows\ABR_Peak_Analysis_Installer.iss" || (
-    echo Set ISCC to Inno Setup ISCC.exe.
+"%ISCC_EXE%" "%ROOT%\packaging\windows\ABR_Peak_Analysis_Installer.iss" || (
+    echo Failed to build Windows setup installer using "%ISCC_EXE%".
     exit /b 1
 )
 
@@ -56,3 +59,4 @@ python -m PyInstaller --noconfirm --clean --onefile --windowed ^
 
 echo Release artifacts written to "%INSTALLERS%".
 popd
+exit /b 0
