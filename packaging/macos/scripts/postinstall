@@ -1,0 +1,49 @@
+#!/bin/bash
+
+APP_PATH="/Applications/EPL ABR Analysis.app"
+LEGACY_ROOT="/Applications/EPL"
+BUNDLE_ID="org.pyottlab.abr-peak-analysis"
+
+bundle_id_for() {
+    /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$1/Contents/Info.plist" 2>/dev/null || true
+}
+
+cleanup_legacy_apps() {
+    [ -d "$APP_PATH" ] || return 0
+    [ -d "$LEGACY_ROOT" ] || return 0
+
+    while IFS= read -r -d '' app; do
+        if [ "$(bundle_id_for "$app")" = "$BUNDLE_ID" ]; then
+            /bin/rm -rf "$app"
+        fi
+    done < <(/usr/bin/find "$LEGACY_ROOT" -maxdepth 3 -name "*.app" -type d -print0 2>/dev/null)
+
+    /usr/bin/find "$LEGACY_ROOT" -depth -type d -exec /bin/rmdir {} \; 2>/dev/null || true
+}
+
+prompt_open_app() {
+    [ -d "$APP_PATH" ] || return 0
+
+    console_user="$(/usr/bin/stat -f %Su /dev/console 2>/dev/null || true)"
+    case "$console_user" in
+        ""|root|loginwindow|_mbsetupuser)
+            return 0
+            ;;
+    esac
+
+    console_uid="$(/usr/bin/id -u "$console_user" 2>/dev/null || true)"
+    [ -n "$console_uid" ] || return 0
+
+    response=$(/bin/launchctl asuser "$console_uid" /usr/bin/sudo -u "$console_user" /usr/bin/osascript 2>/dev/null <<'APPLESCRIPT'
+button returned of (display dialog "Open ABR Peak Analysis now?" buttons {"Not Now", "Open"} default button "Open" cancel button "Not Now" with title "ABR Peak Analysis")
+APPLESCRIPT
+)
+
+    if [ "$response" = "Open" ]; then
+        /bin/launchctl asuser "$console_uid" /usr/bin/sudo -u "$console_user" /usr/bin/open "$APP_PATH" >/dev/null 2>&1 || true
+    fi
+}
+
+cleanup_legacy_apps
+prompt_open_app
+exit 0

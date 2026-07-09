@@ -1,10 +1,15 @@
 # -*- mode: python ; coding: utf-8 -*-
 
 from pathlib import Path
+import sys
 
 HERE = Path(SPECPATH).resolve()
 ROOT = HERE.parents[1]
 SOURCE = ROOT / "Source"
+
+sys.path.insert(0, str(ROOT))
+
+from Source.version import APP_VERSION
 
 a = Analysis(
     [str(SOURCE / "notebook.py")],
@@ -76,4 +81,5 @@ app = BUNDLE(
     name="EPL ABR Analysis.app",
     icon=str(SOURCE / "icon.icns"),
     bundle_identifier="org.pyottlab.abr-peak-analysis",
+    version=APP_VERSION,
 )

@@ -15,6 +15,8 @@ PYINSTALLER_DIST="$ROOT/dist/pyinstaller/macos"
 PYINSTALLER_BUILD="$ROOT/build/pyinstaller/macos"
 PKG_ROOT="$ROOT/build/pkgroot"
 PKG_NAME="ABR-Peak-Analysis-${VERSION}-macos-arm64.pkg"
+COMPONENT_PLIST="$ROOT/packaging/macos/components.plist"
+SCRIPTS_DIR="$ROOT/packaging/macos/scripts"
 
 export PYINSTALLER_CONFIG_DIR="$ROOT/build/pyinstaller/cache"
 
@@ -29,15 +31,17 @@ echo "Building macOS app..."
     "$ROOT/packaging/pyinstaller/notebook_mac.spec"
 
 echo "Staging package..."
-mkdir -p "$PKG_ROOT/Applications/EPL"
-ditto "$PYINSTALLER_DIST/$APP_BUNDLE" "$PKG_ROOT/Applications/EPL/$APP_BUNDLE"
-mkdir -p "$PKG_ROOT/Applications/EPL/$APP_BUNDLE/Contents/Resources"
+mkdir -p "$PKG_ROOT/Applications"
+ditto "$PYINSTALLER_DIST/$APP_BUNDLE" "$PKG_ROOT/Applications/$APP_BUNDLE"
+mkdir -p "$PKG_ROOT/Applications/$APP_BUNDLE/Contents/Resources"
 cp "$ROOT/packaging/install_modes/installer/install_mode.txt" \
-    "$PKG_ROOT/Applications/EPL/$APP_BUNDLE/Contents/Resources/install_mode.txt"
+    "$PKG_ROOT/Applications/$APP_BUNDLE/Contents/Resources/install_mode.txt"
 
 echo "Building package installer..."
 pkgbuild \
     --root "$PKG_ROOT" \
+    --component-plist "$COMPONENT_PLIST" \
+    --scripts "$SCRIPTS_DIR" \
     --identifier "org.pyottlab.abr-peak-analysis" \
     --version "$VERSION" \
     "$INSTALLERS/$PKG_NAME"

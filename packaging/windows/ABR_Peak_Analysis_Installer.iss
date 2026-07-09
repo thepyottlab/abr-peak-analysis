@@ -34,3 +34,6 @@ Source: "{#installerMarker}"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{commondesktop}\{#appName}"; Filename: "{app}\notebook.exe"; IconFilename: "{app}\_internal\{#iconName}"; IconIndex: 0
+
+[Run]
+Filename: "{app}\notebook.exe"; Description: "Open {#appName}"; Flags: nowait postinstall skipifsilent

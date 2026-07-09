@@ -1270,7 +1270,8 @@ class PhysiologyFrame(PersistentFrame):
         else:
             message = (
                 "Update to %s?\n\n"
-                "The installer will download, open, and ABR Peak Analysis will close."
+                "The installer will download, open, and ABR Peak Analysis will close.\n"
+                "After installation, it will ask whether to open the updated app."
             ) % update["tag"]
             yes_label = "Install"
 
@@ -1426,7 +1427,8 @@ class PhysiologyFrame(PersistentFrame):
     def OnAbout(self, evt):
         info = wx.adv.AboutDialogInfo()
         info.Name = "ABR Peak Analysis"
-        info.Version = APP_VERSION
+        if not (sys.platform == "darwin" and getattr(sys, "frozen", False)):
+            info.Version = APP_VERSION
         info.Copyright = "(C) 2007 Speech and Hearing Bioscience and Technology"
 #        info.WebSite = "http://web.mit.edu/shbt"
         info.Developers = ["Brad Buran", "Tom Naber"]
