@@ -1401,9 +1401,9 @@ class PhysiologyFrame(PersistentFrame):
         elif action == 'toggle_normalized':
             presenter.normalized = not presenter.normalized
         elif action == 'increase_scaling':
-            presenter.scale += 1
+            presenter.increase_scale()
         elif action == 'decrease_scaling':
-            presenter.scale -= 1
+            presenter.decrease_scale()
         elif action == 'restore':
             dlg = wx.MessageDialog(None, 'Restoring the previous analysis will lose the current work on this data set.\nContinue?',
                   'Question', wx.YES_NO | wx.NO_DEFAULT | wx.ICON_QUESTION)

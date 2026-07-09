@@ -161,10 +161,10 @@ class WaveformInteractor(KeyInteractor):
         self.presenter.set_threshold()
 
     def kd_plus(self, evt):
-        self.presenter.scale += 1
+        self.presenter.increase_scale()
 
     def kd_minus(self, evt):
-        self.presenter.scale -= 1
+        self.presenter.decrease_scale()
 
     def kd_left(self, evt):
         if evt.ShiftDown():

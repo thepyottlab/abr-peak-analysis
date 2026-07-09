@@ -31,8 +31,9 @@ from kpy.optimize import smooth
 class WaveformPresenter(object):
 
     defaultscale = 7
-    minscale = 1
-    maxscale = 15
+    scale_steps = (0.25, 0.5) + tuple(range(1, 21))
+    minscale = scale_steps[0]
+    maxscale = scale_steps[-1]
 
     def __init__(self, model, view, interactor, options=None):
         self._redrawflag = True
@@ -278,22 +279,33 @@ class WaveformPresenter(object):
         except AttributeError: return WaveformPresenter.defaultscale
 
     def set_scale(self, value):
-        if value <= WaveformPresenter.minscale: pass
-        elif value >= WaveformPresenter.maxscale: pass
+        if value < WaveformPresenter.minscale: pass
+        elif value > WaveformPresenter.maxscale: pass
         elif value == self.scale: pass
         else:
             self._scale = value
             for p in self.plots:
                 p.scale = value
-            self.view.set_ylabel(value)    
             self.update_labels()    
             self._plotupdate = True
             self._redrawflag = True
 
     scale = property(get_scale, set_scale, None, None)      
 
+    def increase_scale(self):
+        for value in WaveformPresenter.scale_steps:
+            if value > self.scale:
+                self.scale = value
+                return
+
+    def decrease_scale(self):
+        for value in reversed(WaveformPresenter.scale_steps):
+            if value < self.scale:
+                self.scale = value
+                return
+
     def update_labels(self):
-        label = u'uV*%d + dB SPL' % self.scale
+        label = u'uV*%g + dB SPL' % self.scale
         if self.normalized:
             self.view.set_ylabel('normalized ' + label)
         else:
