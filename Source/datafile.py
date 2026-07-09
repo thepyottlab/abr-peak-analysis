@@ -546,12 +546,13 @@ def loadtextfile(fname, invert=False, filter=False, fdict=None, t_min=0, t_max=0
 
     try:
         with open(fname) as f:
-            data = f.read()
+            text = f.read()
 
-            if data.startswith('Identifier:'):
+            if text.startswith('Identifier:'):
                 return load_caspary_text_file(fname, invert, filter, fdict, t_min, t_max)
 
-            header, data = data.split('\n', 1)
+            amplitude_scale = 1e6 if 'dBSPL' in text else 1.0
+            header, data = text.split('\n', 1)
 
             cols = header.split('\t')
             numCols = len(cols)
@@ -567,7 +568,7 @@ def loadtextfile(fname, invert=False, filter=False, fdict=None, t_min=0, t_max=0
             data = data.reshape(nrows, numCols).T
 
             t = data[0,:]
-            data = 1e6 * data[1:, :]
+            data = amplitude_scale * data[1:, :]
 
             sampling_period = t[1] - t[0]
             fs = 1/sampling_period
