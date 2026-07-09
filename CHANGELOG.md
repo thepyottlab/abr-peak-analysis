@@ -1,8 +1,15 @@
 ## Changelog
 
-### V2.1.1 (TBD)
+### V2.1.1 (2026-07-09)
 #### Fixed
-- 
+- app not prompting to open again after auto-update
+- version number not showing correctly
+- '=' symbol breaking scaling controls
+- certain .txt files incorrectly being scaled from uV to pV instead of from V to uV
+- scaling range limit (was 2-14, now is 0.25-20)
+
+#### Added
+- Legend for IO plot
 
 #### Removed
 - analyze noise floor option, as the difference waveform between condensation and rarefaction does not reliably isolate only noise peaks (cochlear microphonics can be picked up as a 'spurious' peak and the timing of the waves can differ between condensation and rarefaction, so that a slightly earlier condensation peak would cause a difference between the condensation and rarefaction waveforms that represents an amplitude difference at a given latency due to a real neural signal, not noise as the algorithm expects); some ABR acquisition softwares allow recording prior to stimulus generation, so that we could apply the peak finder algorithm to estimate the noise floor on, for example, 2 ms of recordings before stimulus onset, which we could implement if there is demand
