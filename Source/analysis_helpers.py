@@ -8,7 +8,7 @@ from datatype import ABRStimPolarity, Point, waveformpoint
 from peakdetect import find_np
 
 
-def load_model(fname, invert=False, polarity=ABRStimPolarity.Avg, useNoiseFloor=False):
+def load_model(fname, invert=False, polarity=ABRStimPolarity.Avg):
     filt = DefaultValueHolder("PhysiologyNotebook", "filter")
     filt.SetVariables(ftype="butterworth", fl=10000, fh=200, N=1)
     filt.InitFromConfig()
@@ -23,10 +23,9 @@ def load_model(fname, invert=False, polarity=ABRStimPolarity.Avg, useNoiseFloor=
 
     fdict = {'ftype': filt.ftype, 'W': (filt.fh, filt.fl), 'N': filt.N}
     do_filter = filt.ftype != 'None'
-    noise_floor = getattr(useNoiseFloor, 'value', useNoiseFloor)
     model = loadabr(fname, filter=do_filter, fdict=fdict, invert=invert,
-                    polarity=polarity, noiseFloor=noise_floor,
-                    t_min=time_min.value, t_max=time_max.value)
+                    polarity=polarity, t_min=time_min.value,
+                    t_max=time_max.value)
     model.filter_settings = fdict
     return model
 

@@ -42,8 +42,8 @@ def listdir(dir, match, incdirs=False):
 
 #----------------------------------------------------------------------------
 
-def loadmodel(fname, invert, polarity, useNoiseFloor):
-    return load_model(fname, invert, polarity, useNoiseFloor)
+def loadmodel(fname, invert, polarity):
+    return load_model(fname, invert, polarity)
 
 #----------------------------------------------------------------------------
 
@@ -164,14 +164,11 @@ class PhysiologyNotebook(wx.aui.AuiNotebook):
         showallpol = DefaultValueHolder('PhysiologyNotebook','showallpol')
         showallpol.SetVariables(value=False)
         showallpol.InitFromConfig()
-        useNoiseFloor = DefaultValueHolder('PhysiologyNotebook','useNoiseFloor')
-        useNoiseFloor.SetVariables(value=False)
-        useNoiseFloor.InitFromConfig()
 
         wx.Cursor(wx.StockCursor(wx.CURSOR_WAIT))
         for d in data:
             if not showallpol.value:
-                self.loadser(d, invert, ABRStimPolarity.Avg, useNoiseFloor.value)
+                self.loadser(d, invert, ABRStimPolarity.Avg)
             elif not supports_stimulus_polarities(d):
                 dlg = wx.MessageDialog(self, polarity_unsupported_message(d),
                                        'File Error', wx.OK | wx.ICON_ERROR)
@@ -193,9 +190,9 @@ class PhysiologyNotebook(wx.aui.AuiNotebook):
         for df in datafiles:
             self.load([df], invert)
             
-    def loadser(self, fname, invert=False, polarity=ABRStimPolarity.Avg, useNoiseFloor=False):
+    def loadser(self, fname, invert=False, polarity=ABRStimPolarity.Avg):
         try:
-            model = loadmodel(fname, invert, polarity, useNoiseFloor)
+            model = loadmodel(fname, invert, polarity)
             view = MatplotlibPanel(self, 'Time (msec)', 'Amplitude (uV)', 
                     figsize=(9,8))
 
@@ -1503,7 +1500,6 @@ class PhysiologyOptions(wx.Dialog):
             'iofilter': {'method': 'database'},
             'showallpol': {'value': False},
             'minlatency': {'value': float(0.9)},
-            'useNoiseFloor': {'value': False},
             'overwriteOnSave': {'value': True},
             'autoRestore': {'value': True},
             'timeRangeMin': {'value': float(0)},
@@ -1532,7 +1528,6 @@ class PhysiologyOptions(wx.Dialog):
         self.iofilter = self._configured_option('iofilter')
         self.showallpol = self._configured_option('showallpol')
         self.minlatency = self._configured_option('minlatency')
-        self.useNoiseFloor = self._configured_option('useNoiseFloor')
         self.overwriteOnSave = self._configured_option('overwriteOnSave')
         self.autoRestore = self._configured_option('autoRestore')
         self.timeRangeMin = self._configured_option('timeRangeMin')
@@ -1627,30 +1622,23 @@ class PhysiologyOptions(wx.Dialog):
 
         #stim polarity
         pbox = wx.StaticBox(self, wx.ID_ANY, "Analysis")
-        psizer = wx.StaticBoxSizer(pbox, wx.HORIZONTAL)
+        psizer = wx.StaticBoxSizer(pbox, wx.VERTICAL)
+        analysis_row = wx.BoxSizer(wx.HORIZONTAL)
         label = wx.StaticText(self, wx.ID_ANY, "Analyze each stimulus polarity:")
-        psizer.Add(label, 0, wx.ALL, 5)
+        analysis_row.Add(label, 0, wx.ALL, 5)
         self.cb = wx.CheckBox(self, wx.ID_ANY)
         self.cb.SetValue(showallpol.value)
-        self.cb.Bind(wx.EVT_CHOICE, self.OnStimPolCheck)
-        psizer.Add(self.cb, 0, wx.ALL, 5)
+        self.cb.Bind(wx.EVT_CHECKBOX, self.OnStimPolCheck)
+        analysis_row.Add(self.cb, 0, wx.ALL, 5)
 
         #min latency
-        psizer.AddSpacer(same_row_item_gap)
+        analysis_row.AddSpacer(same_row_item_gap)
         label = wx.StaticText(self, wx.ID_ANY, "Min latency (ms):")
-        psizer.Add(label, 0, wx.ALL, 5)
+        analysis_row.Add(label, 0, wx.ALL, 5)
         self.mlb = wx.TextCtrl(self, wx.ID_ANY, str(minlatency.value),
             size=(75,-1), validator=MinLatencyValidator())
-        psizer.Add(self.mlb, 0, wx.ALL, 5)
-
-        # Use noise floor
-        psizer.AddSpacer(same_row_item_gap)
-        label = wx.StaticText(self, wx.ID_ANY, "Do noise floor analysis:")
-        psizer.Add(label, 0, wx.ALL, 5)
-        self.nfcb = wx.CheckBox(self, wx.ID_ANY)
-        self.nfcb.SetValue(self.useNoiseFloor.value)
-        self.nfcb.Bind(wx.EVT_CHOICE, self.OnUseNoiseFloorCheck)
-        psizer.Add(self.nfcb, 0, wx.ALL, 5)
+        analysis_row.Add(self.mlb, 0, wx.ALL, 5)
+        psizer.Add(analysis_row, 0, wx.ALL, 0)
 
         # Saving
         obox = wx.StaticBox(self, wx.ID_ANY, "Saving")
@@ -1778,7 +1766,6 @@ class PhysiologyOptions(wx.Dialog):
         self.tmaxb.SetValue(str(defaults['timeRangeMax']['value']))
         self.cb.SetValue(defaults['showallpol']['value'])
         self.mlb.SetValue(str(defaults['minlatency']['value']))
-        self.nfcb.SetValue(defaults['useNoiseFloor']['value'])
         self.owcb.SetValue(defaults['overwriteOnSave']['value'])
         self.arcb.SetValue(defaults['autoRestore']['value'])
         self.gridcb.SetValue(defaults['plotting']['addGridlines'])
@@ -1797,16 +1784,13 @@ class PhysiologyOptions(wx.Dialog):
         self.Refresh()
 
     def OnStimPolCheck(self, evt):
-        self.showallpol = self.cb.GetValue()
-
-    def OnUseNoiseFloorCheck(self, evt):
-        self.useNoiseFloor = self.nfcb.GetValue()
+        self.showallpol.SetVariables(value=self.cb.GetValue())
 
     def OnOverwriteOnSaveCheck(self, evt):
-        self.overwriteOnSave = self.owcb.GetValue()
+        self.overwriteOnSave.SetVariables(value=self.owcb.GetValue())
 
     def OnAutoRestoreCheck(self, evt):
-        self.useNoiseFloor = self.arcb.GetValue()
+        self.autoRestore.SetVariables(value=self.arcb.GetValue())
 
     def OnOk(self, evt):
         if self.Validate():
@@ -1826,8 +1810,6 @@ class PhysiologyOptions(wx.Dialog):
             self.timeRangeMax.SetVariables(
                 value=self._optional_float(self.tmaxb.GetValue(), ''))
             self.timeRangeMax.UpdateConfig()
-            self.useNoiseFloor.SetVariables(value=self.nfcb.GetValue())
-            self.useNoiseFloor.UpdateConfig()
             self.overwriteOnSave.SetVariables(value=self.owcb.GetValue())
             self.overwriteOnSave.UpdateConfig()
             self.autoRestore.SetVariables(value=self.arcb.GetValue())

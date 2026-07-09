@@ -287,6 +287,7 @@ class WaveformPresenter(object):
                 p.scale = value
             self.view.set_ylabel(value)    
             self.update_labels()    
+            self._plotupdate = True
             self._redrawflag = True
 
     scale = property(get_scale, set_scale, None, None)      
@@ -503,15 +504,6 @@ class WaveformPresenter(object):
             values.extend(y[np.isfinite(y)])
             self.view.ioplot.plot(level, y, '-', color=PointPlot.COLORS[k])
 
-        random_peaks = getattr(self.model, 'randomPeaks', None)
-        if getattr(self.model, 'useNoiseFloor', False) and random_peaks is not None:
-            for k, p in enumerate(random_peaks[:len(level)]):
-                self.view.ioplot.plot(level[k]*np.ones(len(p)), p, 'o', color='k', markersize=4)
-            noise_floor = getattr(self.model, 'noiseFloor', 0)
-            self.view.ioplot.plot((np.min(level)-5, np.max(level)+5),
-                                  noise_floor*np.ones(2), '-', color='k')
-            values.append(noise_floor)
-        
         self.view.ioplot.set_xlim(np.min(level)-5, np.max(level)+5)
         finite = np.array(values)
         finite = finite[np.isfinite(finite)]

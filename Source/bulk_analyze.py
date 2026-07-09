@@ -35,8 +35,7 @@ def bulk_analyze_files(paths, thresholds=True, peaks=True, conflict_handler=None
 
         for polarity in polarities:
             try:
-                model = load_model(path, polarity=polarity,
-                                   useNoiseFloor=_use_noise_floor())
+                model = load_model(path, polarity=polarity)
                 conflicts = analysis_sqlite.selected_conflicts(
                     model, thresholds=thresholds, peaks=peaks)
                 if conflicts:
@@ -84,13 +83,6 @@ def _polarities_for(path):
         ABRStimPolarity.Condensation,
         ABRStimPolarity.Rarefaction,
     ]
-
-
-def _use_noise_floor():
-    use_noise_floor = DefaultValueHolder('PhysiologyNotebook', 'useNoiseFloor')
-    use_noise_floor.SetVariables(value=False)
-    use_noise_floor.InitFromConfig()
-    return use_noise_floor.value
 
 
 DialogBase = wx.Dialog if wx is not None else object

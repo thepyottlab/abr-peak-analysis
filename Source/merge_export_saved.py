@@ -169,7 +169,7 @@ def _load_source_model(path):
     from datafile import loadabr
     from datatype import ABRStimPolarity
     return loadabr(path, filter=False, polarity=ABRStimPolarity.Avg,
-                   noiseFloor=False, t_min=0, t_max=0)
+                   t_min=0, t_max=0)
 
 
 def threshold_rows(path, polarities=None, include_polarity=False):

@@ -285,9 +285,12 @@ def _save_model(db, model, save_peaks=True, save_waveforms=True,
     level_ids_by_level = []
     for position, waveform in enumerate(model.series):
         cur = db.execute('''
-            INSERT INTO levels (analysis_id, position, level, sampling_rate)
-            VALUES (?, ?, ?, ?)
-        ''', (analysis_id, position, waveform.level, waveform.fs))
+            INSERT INTO levels (
+                analysis_id, position, level, sampling_rate
+            ) VALUES (?, ?, ?, ?)
+        ''', (
+            analysis_id, position, waveform.level, waveform.fs,
+        ))
         level_ids[waveform] = cur.lastrowid
         level_ids_by_level.append((waveform.level, cur.lastrowid))
 
@@ -307,8 +310,9 @@ def _copy_existing_analyses(path, db, skipped_polarity):
         source.row_factory = sqlite3.Row
         analyses = source.execute('''
             SELECT id, schema_version, source_path, filename, frequency,
-                   polarity, supports_polarities, filter_label, filter_settings,
-                   threshold, threshold_source, threshold_method, saved_at
+                   polarity, supports_polarities, filter_label,
+                   filter_settings, threshold, threshold_source,
+                   threshold_method, saved_at
             FROM analysis
             WHERE polarity != ?
             ORDER BY id
@@ -321,7 +325,24 @@ def _copy_existing_analyses(path, db, skipped_polarity):
                 supports_polarities, filter_label, filter_settings, threshold,
                 threshold_source, threshold_method, saved_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', [tuple(row) for row in analyses])
+        ''', [
+            (
+                row['id'],
+                SCHEMA_VERSION,
+                row['source_path'],
+                row['filename'],
+                row['frequency'],
+                row['polarity'],
+                row['supports_polarities'],
+                row['filter_label'],
+                row['filter_settings'],
+                row['threshold'],
+                row['threshold_source'],
+                row['threshold_method'],
+                row['saved_at'],
+            )
+            for row in analyses
+        ])
 
         for analysis_id in analysis_ids:
             levels = source.execute('''
@@ -397,7 +418,6 @@ def _save_peaks(db, model, level_ids):
     visible = DefaultValueHolder('PhysiologyNotebook', 'peakVisibility')
     visible.SetVariables(peak_visibility_defaults())
     visible.InitFromConfig()
-    noise_floor = model.noiseFloor if getattr(model, 'useNoiseFloor', False) else 0
 
     rows = []
     for waveform in model.series:
@@ -415,7 +435,7 @@ def _save_peaks(db, model, level_ids):
                 amplitude = None
             else:
                 latency = float(waveform.x[value.index])
-                amplitude = value.amplitude - noise_floor if point_type == Point.PEAK else value.amplitude
+                amplitude = value.amplitude
             rows.append((
                 level_ids[waveform],
                 int(wave_label),

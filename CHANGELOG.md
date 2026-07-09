@@ -1,4 +1,12 @@
 ## Changelog
+
+### V2.1.1 (TBD)
+#### Fixed
+- 
+
+#### Removed
+- analyze noise floor option, as the difference waveform between condensation and rarefaction does not reliably isolate only noise peaks (cochlear microphonics can be picked up as a 'spurious' peak and the timing of the waves can differ between condensation and rarefaction, so that a slightly earlier condensation peak would cause a difference between the condensation and rarefaction waveforms that represents an amplitude difference at a given latency due to a real neural signal, not noise as the algorithm expects); some ABR acquisition softwares allow recording prior to stimulus generation, so that we could apply the peak finder algorithm to estimate the noise floor on, for example, 2 ms of recordings before stimulus onset, which we could implement if there is demand
+
 ### V2.1.0 (2026-07-09)
 #### Fixed
 - certain file formats not loading

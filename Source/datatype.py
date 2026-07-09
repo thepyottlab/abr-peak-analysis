@@ -16,7 +16,6 @@ from scipy import signal as sig
 import numpy as np
 from copy import deepcopy
 from enum import IntEnum
-from peakdetect import find_spurious_peaks
 
 import os
 import operator
@@ -293,10 +292,6 @@ class abrseries(sortedseries):
         self.thresholdSource = ThrSource.NoThr
         self._bestFit = None
         self._bestFitType = None
-        
-        self.useNoiseFloor = False
-        self.noiseFloor = 0;
-        self.randomPeaks = None
 
     def invert(self):
         for w in self.series:
@@ -443,19 +438,6 @@ class abrseries(sortedseries):
                 self._bestFit = self._sigResult
                 self._bestFitType = 'sigmoid'
 
-    def find_noise_floor(self, cm, maxLevel=70):
-        allPeaks = []
-        self.useNoiseFloor = True
-        self.randomPeaks = []
-        for i in range(len(self.series)):
-            cur = self.series[i]
-            if cur.level < maxLevel:
-                peaks = find_spurious_peaks(cur.fs, cm[i,:], min_latency=0)
-                self.randomPeaks.append(peaks)
-                allPeaks = np.r_[allPeaks, peaks]
-        
-        self.noiseFloor = np.median(allPeaks)           
-        
     def get_varymasker(self):
         try: return self._varymasker
         except AttributeError: return None

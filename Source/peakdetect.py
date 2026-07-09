@@ -86,12 +86,6 @@ def find_np(fs, waveform, nzc='noise_filtered', algorithm='basic', n=5,
             indices.append(len(waveform)-1)
     return indices
 
-def find_spurious_peaks(fs, waveform, nzc='noise_filtered', algorithm='basic', **kwargs):
-    nzcs = nzc_noise_filtered(fs, waveform, **kwargs)
-    ipk = waveform[nzcs] > 0
-    peaks = waveform[nzcs[ipk]]
-    return peaks
-
 def np_bound(fs, waveform, indices, n, bounds, bounded_algorithm, **kwargs):
     fun = globals()['np_'+bounded_algorithm]
     range = indices[(indices>=bounds[n])*(indices<bounds[n+1])]

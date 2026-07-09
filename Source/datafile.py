@@ -108,13 +108,44 @@ def apply_time_range(waveforms, t_min, t_max, fs):
     return waveforms, new_window
 
 
-def loadabr(fname, invert=False, filter=False, fdict=None, polarity=ABRStimPolarity.Avg, noiseFloor=False, t_min=0, t_max=0):
+def _select_polarity(data_cond, data_rare, polarity):
+    if polarity == ABRStimPolarity.Condensation:
+        return data_cond
+    if polarity == ABRStimPolarity.Rarefaction:
+        return data_rare
+    return (data_cond + data_rare) / 2.0
+
+
+def _polarity_waveforms(data_sum, data_diff, levels, fs, polarity,
+                        invert=False, filter=False, fdict=None,
+                        t_min=0, t_max=0, exclude_levels=()):
+    data_cond = data_sum + data_diff
+    data_rare = data_sum - data_diff
+    data = _select_polarity(data_cond, data_rare, polarity)
+    if invert:
+        data = -data
+    excluded = set(exclude_levels or ())
+    keep = [
+        i for i, level in enumerate(levels)
+        if level not in excluded and not (data[i] == 0).all()
+    ]
+    data = data[keep]
+    levels = array(levels)[keep]
+
+    waveforms = [abrwaveform(fs, w, l) for w, l in zip(data, levels)]
+    if filter:
+        waveforms = [w.filtered(**fdict) for w in waveforms]
+    return apply_time_range(waveforms, t_min, t_max, fs)
+
+
+def loadabr(fname, invert=False, filter=False, fdict=None, polarity=ABRStimPolarity.Avg, t_min=0, t_max=0):
     if polarity != ABRStimPolarity.Avg and not supports_stimulus_polarities(fname):
         raise IOError(polarity_unsupported_message(fname))
 
     f, ext = os.path.splitext(fname)
     if ext == '.csv':
-        return loadclinicalabr(fname, invert, filter, fdict, t_min, t_max, polarity)
+        return loadclinicalabr(fname, invert, filter, fdict, t_min, t_max,
+                               polarity)
     if ext.lower() == '.txt':
         return loadtextfile(fname, invert, filter, fdict, t_min, t_max)
     if ext == '.anx':
@@ -144,13 +175,19 @@ def loadabr(fname, invert=False, filter=False, fdict=None, polarity=ABRStimPolar
             data = f.read()
 
             if data.startswith('[STANDARD ABR]'):
-                return load_comprehensive_cfts_data(fname, invert, filter, fdict, t_min=t_min, t_max=t_max)
+                return load_comprehensive_cfts_data(
+                    fname, invert, filter, fdict, polarity,
+                    t_min=t_min, t_max=t_max)
 
             if data.startswith('[FAST ABR]'):
-                return load_fast_abr_data(fname, invert, filter, fdict, t_min=t_min, t_max=t_max)
+                return load_fast_abr_data(
+                    fname, invert, filter, fdict, polarity,
+                    t_min=t_min, t_max=t_max)
 
             if data.startswith(('[IHS ABR]', '[Eclipse ABR]', '[CUSTOM ABR]')):
-                return load_custom_abr_data(fname, invert, filter, fdict, t_min=t_min, t_max=t_max)
+                return load_custom_abr_data(
+                    fname, invert, filter, fdict, polarity,
+                    t_min=t_min, t_max=t_max)
 
             header, data = data.split('DATA')
 
@@ -184,32 +221,6 @@ def loadabr(fname, invert=False, filter=False, fdict=None, polarity=ABRStimPolar
             dataSum = data[:,:cutoff]
             dataDiff = data[:, cutoff:]
 
-            # compute condensation and rarefaction traces from sum and difference
-            dataCond = dataSum + dataDiff
-            dataRare = dataSum - dataDiff
-
-            # select the stimulus polarity specified by the user
-            if polarity == ABRStimPolarity.Avg:
-                data = dataSum;
-            if polarity == ABRStimPolarity.Condensation:
-                data = dataCond
-            if polarity == ABRStimPolarity.Rarefaction:
-                data = dataRare
-
-            if invert:
-                data = -data
-
-            waveforms = [abrwaveform(fs, w, l) for w, l in zip(data, levels)]
-
-            # Checks for an ABR I-O bug that sometimes saves zeroed waveforms
-            # Also excludes controls
-            for w in waveforms[:]:
-                if (w.y==0).all() or w.level==controlVal:
-                    waveforms.remove(w)
-
-            if filter:
-                waveforms = [w.filtered(**fdict) for w in waveforms]
-
             # parse stimulus waveform description
             if isVsEP:
                 freq = -1
@@ -226,7 +237,9 @@ def loadabr(fname, invert=False, filter=False, fdict=None, polarity=ABRStimPolar
                     else:
                         freq = float(freqStr)
 
-            waveforms, adjusted_window = apply_time_range(waveforms, t_min, t_max, fs)
+            waveforms, adjusted_window = _polarity_waveforms(
+                dataSum, dataDiff, levels, fs, polarity, invert, filter, fdict,
+                t_min, t_max, exclude_levels=[controlVal])
             if adjusted_window is not None:
                 abr_window = adjusted_window
             else:
@@ -239,9 +252,6 @@ def loadabr(fname, invert=False, filter=False, fdict=None, polarity=ABRStimPolar
             series.time = p_time.search(header).group(1)
             series.Tmax = abr_window
 
-            if noiseFloor:
-                series.find_noise_floor(dataDiff)
-
             return series
 
     except (AttributeError, ValueError):
@@ -249,7 +259,7 @@ def loadabr(fname, invert=False, filter=False, fdict=None, polarity=ABRStimPolar
         raise IOError(msg)
 
 
-def load_comprehensive_cfts_data(fname, invert=False, filter=False, fdict=None, polarity=ABRStimPolarity.Avg, noiseFloor=False, t_min=0, t_max=0):
+def load_comprehensive_cfts_data(fname, invert=False, filter=False, fdict=None, polarity=ABRStimPolarity.Avg, t_min=0, t_max=0):
 
     p_level = re.compile('Levels=([\-0-9.; Inf]+)')
     p_fs = re.compile('Response.Sampling rate \(Hz\)=([0-9.]+)')
@@ -289,32 +299,6 @@ def load_comprehensive_cfts_data(fname, invert=False, filter=False, fdict=None, 
             dataSum = data[1:len(levels)+1,:]
             dataDiff = data[(len(levels) + 1):, :]
 
-            # compute condensation and rarefaction traces from sum and difference
-            dataCond = dataSum + dataDiff
-            dataRare = dataSum - dataDiff
-
-            # select the stimulus polarity specified by the user
-            if polarity == ABRStimPolarity.Avg:
-                data = dataSum;
-            if polarity == ABRStimPolarity.Condensation:
-                data = dataCond
-            if polarity == ABRStimPolarity.Rarefaction:
-                data = dataRare
-
-            if invert:
-                data = -data
-
-            waveforms = [abrwaveform(fs, w, l) for w, l in zip(data, levels)]
-
-            # Checks for an ABR I-O bug that sometimes saves zeroed waveforms
-            # Also excludes controls
-            for w in waveforms[:]:
-                if (w.y==0).all():
-                    waveforms.remove(w)
-
-            if filter:
-                waveforms = [w.filtered(**fdict) for w in waveforms]
-
             waveShape = p_wav.search(header).group(1)
 
             if waveShape == 'CLICK':
@@ -325,7 +309,9 @@ def load_comprehensive_cfts_data(fname, invert=False, filter=False, fdict=None, 
             dataType = ABRDataType.CFTS
             varyMasker = False
 
-            waveforms, adjusted_window = apply_time_range(waveforms, t_min, t_max, fs)
+            waveforms, adjusted_window = _polarity_waveforms(
+                dataSum, dataDiff, levels, fs, polarity, invert, filter, fdict,
+                t_min, t_max)
             if adjusted_window is not None:
                 abr_window = adjusted_window
 
@@ -336,9 +322,6 @@ def load_comprehensive_cfts_data(fname, invert=False, filter=False, fdict=None, 
             series.time = p_time.search(header).group(1)
             series.Tmax = abr_window
 
-            if noiseFloor:
-                series.find_noise_floor(dataDiff)
-
             return series
 
     except (AttributeError, ValueError):
@@ -346,7 +329,7 @@ def load_comprehensive_cfts_data(fname, invert=False, filter=False, fdict=None, 
         raise IOError(msg)
 
 
-def load_fast_abr_data(fname, invert=False, filter=False, fdict=None, polarity=ABRStimPolarity.Avg, noiseFloor=False, t_min=0, t_max=0):
+def load_fast_abr_data(fname, invert=False, filter=False, fdict=None, polarity=ABRStimPolarity.Avg, t_min=0, t_max=0):
 
     p_level = re.compile('Levels=([\-0-9.; Inf]+)')
     p_fs = re.compile('Response.Fs \(Hz\)=([0-9.]+)')
@@ -378,38 +361,14 @@ def load_fast_abr_data(fname, invert=False, filter=False, fdict=None, polarity=A
             dataSum = data[1:len(levels)+1,:]
             dataDiff = data[(len(levels) + 1):, :]
 
-            # compute condensation and rarefaction traces from sum and difference
-            dataCond = dataSum + dataDiff
-            dataRare = dataSum - dataDiff
-
-            # select the stimulus polarity specified by the user
-            if polarity == ABRStimPolarity.Avg:
-                data = dataSum;
-            if polarity == ABRStimPolarity.Condensation:
-                data = dataCond
-            if polarity == ABRStimPolarity.Rarefaction:
-                data = dataRare
-
-            if invert:
-                data = -data
-
-            waveforms = [abrwaveform(fs, w, l) for w, l in zip(data, levels)]
-
-            # Checks for an ABR I-O bug that sometimes saves zeroed waveforms
-            # Also excludes controls
-            for w in waveforms[:]:
-                if (w.y==0).all():
-                    waveforms.remove(w)
-
-            if filter:
-                waveforms = [w.filtered(**fdict) for w in waveforms]
-
             freq = float(p_freq.search(header).group(1))
 
             dataType = ABRDataType.CFTS
             varyMasker = False
 
-            waveforms, adjusted_window = apply_time_range(waveforms, t_min, t_max, fs)
+            waveforms, adjusted_window = _polarity_waveforms(
+                dataSum, dataDiff, levels, fs, polarity, invert, filter, fdict,
+                t_min, t_max)
             if adjusted_window is not None:
                 abr_window = adjusted_window
 
@@ -420,9 +379,6 @@ def load_fast_abr_data(fname, invert=False, filter=False, fdict=None, polarity=A
             series.time = p_time.search(header).group(1)
             series.Tmax = abr_window
 
-            if noiseFloor:
-                series.find_noise_floor(dataDiff)
-
             return series
 
     except (AttributeError, ValueError):
@@ -430,7 +386,7 @@ def load_fast_abr_data(fname, invert=False, filter=False, fdict=None, polarity=A
         raise IOError(msg)
 
 
-def load_custom_abr_data(fname, invert=False, filter=False, fdict=None, polarity=ABRStimPolarity.Avg, noiseFloor=False, t_min=0, t_max=0):
+def load_custom_abr_data(fname, invert=False, filter=False, fdict=None, polarity=ABRStimPolarity.Avg, t_min=0, t_max=0):
     if polarity != ABRStimPolarity.Avg:
         raise IOError(polarity_unsupported_message(fname))
 
@@ -496,10 +452,6 @@ def load_custom_abr_data(fname, invert=False, filter=False, fdict=None, polarity
             series.time = p_time.search(header).group(1)
             series.Tmax = abr_window
 
-            if noiseFloor:
-                raise ValueError(
-                    "Noise floor calculation requires difference waveforms, not available in this file format.")
-
             return series
 
     except (AttributeError, ValueError):
@@ -521,13 +473,27 @@ def loadclinicalabr(fname, invert=False, filter=False, fdict=None, t_min=0, t_ma
             data = data.reshape(int(len(data)/numCols), numCols).T
 
             t = data[0,:]
+            sampling_period = t[1] - t[0]
+            fs = 1/sampling_period
+
             if all(c in columns for c in ('c', 'r', 'avg')):
-                if polarity == ABRStimPolarity.Condensation:
-                    data = data[[columns.index('c')], :]
-                elif polarity == ABRStimPolarity.Rarefaction:
-                    data = data[[columns.index('r')], :]
-                else:
-                    data = data[[columns.index('avg')], :]
+                column = {
+                    ABRStimPolarity.Avg: 'avg',
+                    ABRStimPolarity.Condensation: 'c',
+                    ABRStimPolarity.Rarefaction: 'r',
+                }[polarity]
+                data_selected = 1e6 * data[[columns.index(column)], :]
+                levels = [0]
+                if invert:
+                    data_selected = -data_selected
+                waveforms = [
+                    abrwaveform(fs, w, l)
+                    for w, l in zip(data_selected, levels)
+                ]
+                if filter:
+                    waveforms = [w.filtered(**fdict) for w in waveforms]
+                waveforms, adjusted_window = apply_time_range(
+                    waveforms, t_min, t_max, fs)
             else:
                 if polarity != ABRStimPolarity.Avg:
                     raise IOError(polarity_unsupported_message(fname))
@@ -535,34 +501,32 @@ def loadclinicalabr(fname, invert=False, filter=False, fdict=None, t_min=0, t_ma
                     data = data[3:5, :]
                 else:
                     data = data[1:, :]
-            levels = list(range(len(data)))
 
-            data = 1e6 * data
+                levels = list(range(len(data)))
+                data = 1e6 * data
 
-            sampling_period = t[1] - t[0]
-            fs = 1/sampling_period
+                if invert:
+                    data = -data
 
-            if invert:
-                data = -data
+#                waveforms = [abrwaveform(fs, data(1,:), 0), abrwaveform(fs, data(2,:), 1), abrwaveform(fs, data(3,:), 2)]
+                waveforms = [abrwaveform(fs, w, l) for w, l in zip(data, levels)]
 
-#            waveforms = [abrwaveform(fs, data(1,:), 0), abrwaveform(fs, data(2,:), 1), abrwaveform(fs, data(3,:), 2)]
-            waveforms = [abrwaveform(fs, w, l) for w, l in zip(data, levels)]
+                #Checks for a ABR I-O bug that sometimes saves zeroed waveforms
+                for w in waveforms[:]:
+                    if (w.y==0).all():
+                        waveforms.remove(w)
 
-            #Checks for a ABR I-O bug that sometimes saves zeroed waveforms
-            for w in waveforms[:]:
-                if (w.y==0).all():
-                    waveforms.remove(w)
+                if filter:
+                    waveforms = [w.filtered(**fdict) for w in waveforms]
 
-            if filter:
-                waveforms = [w.filtered(**fdict) for w in waveforms]
+                waveforms, adjusted_window = apply_time_range(waveforms, t_min, t_max, fs)
 
-            freq = -1
-
-            waveforms, adjusted_window = apply_time_range(waveforms, t_min, t_max, fs)
             if adjusted_window is not None:
                 abr_window = adjusted_window
             else:
                 abr_window = max(t) * 1000
+
+            freq = -1
 
             series = abrseries(waveforms, freq, None, ABRDataType.Clinical, polarity)
             series.filename = fname
