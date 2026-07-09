@@ -73,7 +73,7 @@ scripts/build-mac.sh
 scripts\build-windows.bat
 
 # GitHub release
-python scripts/release.py --draft
+python scripts/release.py # Use the --draft argument to store the release as a draft
 ```
 
 ## License
