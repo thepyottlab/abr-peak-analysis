@@ -504,17 +504,27 @@ class WaveformPresenter(object):
 
         level = np.array([w.level for w in self.model.series])
         values = []
+        plotted = False
         for k in range(expected_peak_count()):
             label = k + 1
             if not self._point_visible(Point.PEAK, label):
                 continue
             trough_visible = self._point_visible(Point.VALLEY, label)
+            trough_placed = trough_visible and any(np.isfinite(
+                self._point_amplitude(w, (Point.VALLEY, label))
+            ) for w in self.model.series)
             y = np.array([
                 self._io_amplitude(w, label, trough_visible)
                 for w in self.model.series
             ])
             values.extend(y[np.isfinite(y)])
-            self.view.ioplot.plot(level, y, '-', color=PointPlot.COLORS[k])
+            line_label = '%s %d' % ('Wave' if trough_placed else 'Peak', label)
+            self.view.ioplot.plot(
+                level, y, '-', color=PointPlot.COLORS[k], label=line_label)
+            plotted = True
+
+        if plotted:
+            self.view.ioplot.legend(loc='upper left')
 
         self.view.ioplot.set_xlim(np.min(level)-5, np.max(level)+5)
         finite = np.array(values)
