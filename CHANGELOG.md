@@ -1,5 +1,5 @@
 ## Changelog
-### V2.1.0 (TBD)
+### V2.1.0 (2026-07-09)
 #### Fixed
 - certain file formats not loading
 - longer recordings not showing appropriate time intervals
