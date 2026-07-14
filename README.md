@@ -11,6 +11,7 @@ This is a fork by The Pyott Lab of the EPL-maintained version of ABR Peak Analys
 - Selecting the number of peaks to detect and selecting which peaks/troughs should be included.
 - Automated updates.
 - Setting filter order.
+- Dragging of peaks and points with the cursor (with or without snapping to the nearest peak).
 
 A full list of changes can be seen in the [changelog](CHANGELOG.md) from V2.0.0. 
 
