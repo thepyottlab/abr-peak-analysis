@@ -201,13 +201,14 @@ def peak_rows(path, polarities=None, include_polarity=False):
         return []
     with _connect(path) as db:
         where, params = _polarity_filter('a', polarities)
+        included = 'AND p.included = 1' if _has_column(db, 'peaks', 'included') else ''
         rows = db.execute(f'''
             SELECT a.filename, a.polarity, l.level, a.frequency, p.wave_label,
                    p.point_type, p.latency, p.amplitude
             FROM peaks AS p
             JOIN levels AS l ON l.id = p.level_id
             JOIN analysis AS a ON a.id = l.analysis_id
-            WHERE {where}
+            WHERE {where} {included}
             ORDER BY a.filename, a.polarity, p.wave_label, a.frequency,
                      l.level, p.point_type
         ''', params)
@@ -283,6 +284,10 @@ def _connect(path):
         db.close()
         raise ValueError(f'Not a valid analysis SQLite file: {path}') from e
     return db
+
+
+def _has_column(db, table, column):
+    return column in [row[1] for row in db.execute('PRAGMA table_info(%s)' % table)]
 
 
 def _analyze_each_polarity_enabled():

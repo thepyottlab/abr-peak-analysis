@@ -1689,7 +1689,7 @@ class PhysiologyOptions(wx.Dialog):
         vsizer.Add(expected_row, 0, wx.ALL, 5)
 
         peak_row = wx.BoxSizer(wx.HORIZONTAL)
-        label = wx.StaticText(self, wx.ID_ANY, "Show peaks:")
+        label = wx.StaticText(self, wx.ID_ANY, "Included peaks:")
         peak_row.Add(label, 0, wx.ALL, 5)
         self.pcbs = []
         for k, roman in enumerate(['I', 'II', 'III', 'IV', 'V', 'VI']):
@@ -1700,7 +1700,7 @@ class PhysiologyOptions(wx.Dialog):
         vsizer.Add(peak_row, 0, wx.ALL, 5)
 
         valley_row = wx.BoxSizer(wx.HORIZONTAL)
-        label = wx.StaticText(self, wx.ID_ANY, "Show valleys:")
+        label = wx.StaticText(self, wx.ID_ANY, "Included valleys:")
         valley_row.Add(label, 0, wx.ALL, 5)
         self.ncbs = []
         for k, roman in enumerate(['I', 'II', 'III', 'IV', 'V', 'VI']):

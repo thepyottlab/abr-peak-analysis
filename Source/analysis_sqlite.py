@@ -11,7 +11,7 @@ from datafile import supports_stimulus_polarities
 from datatype import ABRStimPolarity, Point, ThrSource, Th
 
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
 def analysis_path(model):
@@ -35,18 +35,19 @@ def have_analysis(model):
 
 def save(model):
     path = analysis_path(model)
+    polarity = _polarity_name(model.stimPol)
+    preserved_peaks = _read_peak_rows(path, polarity) if os.path.exists(path) else []
 
     tmp_path = path + '.tmp'
     if os.path.exists(tmp_path):
         os.unlink(tmp_path)
 
-    polarity = _polarity_name(model.stimPol)
     with closing(sqlite3.connect(tmp_path)) as db:
         with db:
             db.execute('PRAGMA foreign_keys = ON')
             _create_schema(db)
             _copy_existing_analyses(path, db, polarity)
-            _save_model(db, model)
+            _save_model(db, model, preserved_peaks=preserved_peaks)
 
     os.replace(tmp_path, path)
     return 'Saved data to %s' % path
@@ -61,8 +62,7 @@ def save_selected(model, thresholds=False, peaks=False, waveforms=True):
     if os.path.exists(path):
         if not thresholds:
             preserved_threshold = _read_threshold(path, polarity) or preserved_threshold
-        if not peaks:
-            preserved_peaks = _read_peak_rows(path, polarity)
+        preserved_peaks = _read_peak_rows(path, polarity)
 
     tmp_path = path + '.tmp'
     if os.path.exists(tmp_path):
@@ -240,6 +240,7 @@ def _create_schema(db):
             sample_index INTEGER NOT NULL,
             latency REAL,
             amplitude REAL,
+            included INTEGER NOT NULL,
             FOREIGN KEY (level_id) REFERENCES levels(id) ON DELETE CASCADE
         );
 
@@ -295,7 +296,7 @@ def _save_model(db, model, save_peaks=True, save_waveforms=True,
         level_ids_by_level.append((waveform.level, cur.lastrowid))
 
     if save_peaks:
-        _save_peaks(db, model, level_ids)
+        _save_peaks(db, model, level_ids, level_ids_by_level, preserved_peaks)
     elif preserved_peaks:
         _save_preserved_peaks(db, level_ids_by_level, preserved_peaks)
     if save_waveforms:
@@ -357,9 +358,11 @@ def _copy_existing_analyses(path, db, skipped_polarity):
                 ) VALUES (?, ?, ?, ?, ?)
             ''', [tuple(row) for row in levels])
 
-            peaks = source.execute('''
+            included = 'p.included' if _has_column(source, 'peaks', 'included') else '1'
+            peaks = source.execute(f'''
                 SELECT p.id, p.level_id, p.wave_label, p.point_type,
-                       p.sample_index, p.latency, p.amplitude
+                       p.sample_index, p.latency, p.amplitude,
+                       {included} AS included
                 FROM peaks AS p
                 JOIN levels AS l ON l.id = p.level_id
                 WHERE l.analysis_id = ?
@@ -368,8 +371,8 @@ def _copy_existing_analyses(path, db, skipped_polarity):
             db.executemany('''
                 INSERT INTO peaks (
                     id, level_id, wave_label, point_type, sample_index,
-                    latency, amplitude
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    latency, amplitude, included
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ''', [tuple(row) for row in peaks])
 
             waveforms = source.execute('''
@@ -402,9 +405,10 @@ def _read_threshold(path, polarity):
 def _read_peak_rows(path, polarity):
     with sqlite3.connect(path) as db:
         db.row_factory = sqlite3.Row
-        rows = db.execute('''
+        included = 'p.included' if _has_column(db, 'peaks', 'included') else '1'
+        rows = db.execute(f'''
             SELECT l.level, p.wave_label, p.point_type, p.sample_index,
-                   p.latency, p.amplitude
+                   p.latency, p.amplitude, {included} AS included
             FROM peaks AS p
             JOIN levels AS l ON l.id = p.level_id
             JOIN analysis AS a ON a.id = l.analysis_id
@@ -414,7 +418,7 @@ def _read_peak_rows(path, polarity):
         return [dict(row) for row in rows]
 
 
-def _save_peaks(db, model, level_ids):
+def _save_peaks(db, model, level_ids, level_ids_by_level, preserved_peaks):
     visible = DefaultValueHolder('PhysiologyNotebook', 'peakVisibility')
     visible.SetVariables(peak_visibility_defaults())
     visible.InitFromConfig()
@@ -426,7 +430,10 @@ def _save_peaks(db, model, level_ids):
             if wave_label < 1 or wave_label > MAX_PEAKS:
                 continue
             key = ('p%d' if point_type == Point.PEAK else 'n%d') % wave_label
-            if not getattr(visible, key):
+            included = getattr(visible, key)
+            point_type = 'peak' if point_type == Point.PEAK else 'trough'
+            if not included and _find_peak(
+                    preserved_peaks, waveform.level, wave_label, point_type):
                 continue
             if value.index < 0 or value.index >= len(waveform.y):
                 continue
@@ -439,17 +446,27 @@ def _save_peaks(db, model, level_ids):
             rows.append((
                 level_ids[waveform],
                 int(wave_label),
-                'peak' if point_type == Point.PEAK else 'trough',
+                point_type,
                 int(value.index),
                 latency,
                 None if amplitude is None else float(amplitude),
+                int(included),
             ))
 
     db.executemany('''
         INSERT INTO peaks (
-            level_id, wave_label, point_type, sample_index, latency, amplitude
-        ) VALUES (?, ?, ?, ?, ?, ?)
+            level_id, wave_label, point_type, sample_index, latency, amplitude,
+            included
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
     ''', rows)
+
+    hidden_peaks = [
+        dict(peak, included=0)
+        for peak in preserved_peaks
+        if not getattr(visible, ('p%d' if peak['point_type'] == 'peak' else 'n%d')
+                       % peak['wave_label'])
+    ]
+    _save_preserved_peaks(db, level_ids_by_level, hidden_peaks)
 
 
 def _save_waveform_points(db, model, level_ids):
@@ -481,13 +498,26 @@ def _save_preserved_peaks(db, level_ids_by_level, peak_rows):
             peak['sample_index'],
             peak['latency'],
             peak['amplitude'],
+            peak.get('included', 1),
         ))
 
     db.executemany('''
         INSERT INTO peaks (
-            level_id, wave_label, point_type, sample_index, latency, amplitude
-        ) VALUES (?, ?, ?, ?, ?, ?)
+            level_id, wave_label, point_type, sample_index, latency, amplitude,
+            included
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
     ''', rows)
+
+
+def _find_peak(peaks, level, wave_label, point_type):
+    return next((peak for peak in peaks
+                 if abs(float(peak['level']) - float(level)) < 1e-9
+                 and peak['wave_label'] == wave_label
+                 and peak['point_type'] == point_type), None)
+
+
+def _has_column(db, table, column):
+    return column in [row[1] for row in db.execute('PRAGMA table_info(%s)' % table)]
 
 
 def _level_id_from_saved_levels(level_ids_by_level, level):
