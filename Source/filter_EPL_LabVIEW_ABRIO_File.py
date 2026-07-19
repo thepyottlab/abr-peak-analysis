@@ -80,7 +80,7 @@ def list(location, skip_processed=False):
                 if 'ch0avg' not in f and not f.lower().endswith('.sqlite')]
         return [{
             'display':  d,
-            'data':     d,
+            'data':     os.path.join(location, d),
             'sort_key': d,
             'has_children': os.path.isdir(os.path.join(location, d)),
             'data_string':  os.path.join(location, d),
