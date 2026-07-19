@@ -123,9 +123,13 @@ class ChoiceHintRenderer(wx.grid.GridCellStringRenderer):
 
 class PhysiologyNotebook(wx.aui.AuiNotebook):
 
+    BLANK_TAB_NAME = 'New Tab'
+
     def __init__(self, parent, id=wx.ID_ANY, pos=wx.DefaultPosition,
             size=wx.DefaultSize, style=wx.aui.AUI_NB_DEFAULT_STYLE, **kwargs):
 
+        style &= ~wx.aui.AUI_NB_CLOSE_ON_ACTIVE_TAB
+        style |= wx.aui.AUI_NB_CLOSE_ON_ALL_TABS
         wx.aui.AuiNotebook.__init__(self, parent, id, pos, size, style,
                 **kwargs)
 
@@ -136,7 +140,26 @@ class PhysiologyNotebook(wx.aui.AuiNotebook):
         self.Bind(wx.EVT_SIZE, self.OnSize)
         self.Bind(wx.EVT_IDLE, self.OnIdle)
         self.Bind(wx.aui.EVT_AUINOTEBOOK_PAGE_CLOSED, self.OnPageClosed)
-        
+        self._add_tab_control = wx.aui.AuiTabCtrl(self)
+        self._add_tab_control.SetArtProvider(self.GetArtProvider().Clone())
+        self._add_tab_control.SetFlags(0)
+        self._add_tab_window = wx.Panel(self)
+        self._add_tab_window.Hide()
+        add_bitmap = wx.ArtProvider.GetBitmap(
+            wx.ART_PLUS, wx.ART_OTHER, (12, 12))
+        add_page = wx.aui.AuiNotebookPage()
+        add_page.caption = ''
+        add_page.tooltip = 'New tab'
+        add_page.bitmap = wx.BitmapBundle(add_bitmap)
+        add_page.active = False
+        self._add_tab_control.AddPage(self._add_tab_window, add_page)
+        self._add_tab_control.Bind(
+            wx.aui.EVT_AUINOTEBOOK_PAGE_CHANGING, self.OnAddTab)
+        self._add_tab_control.SetSize(
+            1, 1, self.FromDIP(36), self.FromDIP(28))
+        self._add_tab_control.Raise()
+        wx.CallAfter(self._position_add_tab)
+
     def __getitem__(self, index):
         ''' More pythonic way to get a specific page, also useful for iterating
             over all pages, e.g: for page in notebook: ... '''
@@ -160,39 +183,101 @@ class PhysiologyNotebook(wx.aui.AuiNotebook):
                 
         return True
 
+    def document_indexes(self):
+        return list(range(self.GetPageCount()))
+
+    def selected_file_is_open(self, fname):
+        index = self.GetSelection()
+        if index == wx.NOT_FOUND:
+            return False
+        target = os.path.normcase(os.path.realpath(fname))
+        presenter = getattr(self.GetPage(index), 'presenter', None)
+        current = getattr(getattr(presenter, 'model', None), 'filename', None)
+        return bool(current and
+                    os.path.normcase(os.path.realpath(current)) == target)
+
+    def add_blank_tab(self):
+        page = wx.Panel(self)
+        page.is_blank_tab = True
+        self.AddPage(page, self.BLANK_TAB_NAME, select=True)
+        wx.CallAfter(self._select_page, page)
+        wx.CallAfter(self._position_add_tab)
+        return page
+
+    def _select_page(self, page):
+        try:
+            index = self.GetPageIndex(page)
+        except RuntimeError:
+            return
+        if index != wx.NOT_FOUND:
+            self.ChangeSelection(index)
+
+    def replace_selected_page(self, page, name):
+        index = self.GetSelection()
+        if index == wx.NOT_FOUND:
+            self.AddPage(page, name, select=True)
+            wx.CallAfter(self._position_add_tab)
+            return
+
+        self.InsertPage(index, page, name)
+        self.ChangeSelection(index)
+        self.DeletePage(index + 1)
+        wx.CallAfter(self._position_add_tab)
+
+    def add_page_after_selected(self, page, name):
+        selected = self.GetSelection()
+        index = selected + 1 if selected != wx.NOT_FOUND else 0
+        self.InsertPage(index, page, name)
+        self.ChangeSelection(index)
+        wx.CallAfter(self._position_add_tab)
+
     def load_normal(self, data, invert=False):
         showallpol = DefaultValueHolder('PhysiologyNotebook','showallpol')
         showallpol.SetVariables(value=False)
         showallpol.InitFromConfig()
 
         wx.Cursor(wx.StockCursor(wx.CURSOR_WAIT))
-        for d in data:
-            if not showallpol.value:
-                self.loadser(d, invert, ABRStimPolarity.Avg)
-            elif not supports_stimulus_polarities(d):
-                dlg = wx.MessageDialog(self, polarity_unsupported_message(d),
-                                       'File Error', wx.OK | wx.ICON_ERROR)
-                dlg.ShowModal()
-                dlg.Destroy()
-            else:
-                pol = [ABRStimPolarity.Condensation, ABRStimPolarity.Rarefaction]
-                for p in pol:               
-                    self.loadser(d, invert, p)
+        d = data[0]
+        if not showallpol.value:
+            loaded = self.loadser(d, invert, ABRStimPolarity.Avg)
+        elif not supports_stimulus_polarities(d):
+            dlg = wx.MessageDialog(self, polarity_unsupported_message(d),
+                                   'File Error', wx.OK | wx.ICON_ERROR)
+            dlg.ShowModal()
+            dlg.Destroy()
+            loaded = False
+        else:
+            loaded = self.loadser(
+                d, invert, ABRStimPolarity.Condensation)
+            if loaded:
+                loaded = self.loadser(
+                    d, invert, ABRStimPolarity.Rarefaction,
+                    replace=False)
         wx.Cursor(wx.StockCursor(wx.CURSOR_DEFAULT))
+        return loaded
 
     def load(self, data, invert=False):
+        if not data:
+            return False
+        if self.selected_file_is_open(data[0]):
+            return True
         if self.is_audiogram_series(data):
-            self.load_freq_series(data)
-        else:
-            self.load_normal(data, invert)
+            return self.load_freq_series(data)
+        if len(data) != 1:
+            wx.MessageBox(
+                'Add tabs with + and open one file in each tab.',
+                'Open Files', wx.OK | wx.ICON_INFORMATION, self)
+            return False
+        return self.load_normal(data, invert)
             
     def loadfiles(self, datafiles, invert=False):
-        for df in datafiles:
-            self.load([df], invert)
+        return self.load(datafiles, invert)
             
-    def loadser(self, fname, invert=False, polarity=ABRStimPolarity.Avg):
+    def loadser(self, fname, invert=False, polarity=ABRStimPolarity.Avg,
+                replace=True):
         try:
             model = loadmodel(fname, invert, polarity)
+            model.inverted = invert
             view = MatplotlibPanel(self, 'Time (msec)', 'Amplitude (uV)', 
                     figsize=(9,8))
 
@@ -208,20 +293,26 @@ class PhysiologyNotebook(wx.aui.AuiNotebook):
                 name = name + " (Rare)"
                 
                 
-            self.AddPage(view, name, select=True)
-            self.GetPage(self.GetSelection()).canvas.Resize()
+            if replace:
+                self.replace_selected_page(view, name)
+            else:
+                self.add_page_after_selected(view, name)
+            view.canvas.Resize()
             self.GetTopLevelParent().SetStatusText('Loaded file %s' % name) 
+            return True
             
         except OSError as e:
 #            print(format(e))           
             dlg = wx.MessageDialog(self, format(e), 'File Error', wx.OK | wx.ICON_ERROR)
             dlg.ShowModal()
             dlg.Destroy()
+            return False
         except IOError as e:
             dlg = wx.MessageDialog(self, e.message, 'File Error',
                     wx.OK | wx.ICON_ERROR)
             dlg.ShowModal()
             dlg.Destroy()
+            return False
             
 
     def load_freq_series(self, data):
@@ -234,14 +325,17 @@ class PhysiologyNotebook(wx.aui.AuiNotebook):
             AudiogramPresenter(model, view, AudiogramInteractor())
             name = get_expt_id(data[0]) + ": audio"
                 
-            self.AddPage(view, name, select=True)
+            self.replace_selected_page(view, name)
             self.GetTopLevelParent().SetStatusText('Loaded file %s' % name) 
+            return True
         except IOError as e:
             dlg = wx.MessageDialog(self, e.message, 'File Error',
                     wx.OK | wx.ICON_ERROR)
             dlg.ShowModal()
             dlg.Destroy()
-        wx.Cursor(wx.StockCursor(wx.CURSOR_DEFAULT))
+            return False
+        finally:
+            wx.Cursor(wx.StockCursor(wx.CURSOR_DEFAULT))
 
     def OnSize(self, evt):
         self._resized = True
@@ -250,12 +344,48 @@ class PhysiologyNotebook(wx.aui.AuiNotebook):
         if self._resized and self.PageCount > 0:
             self._resized = False
             for page in self:
-                page.canvas.Resize()
+                if hasattr(page, 'canvas'):
+                    page.canvas.Resize()
 #            w = self.GetPage(0)
 #            w.canvas.Resize()
+        self._position_add_tab()
+
+    def OnAddTab(self, evt):
+        evt.Veto()
+        wx.CallAfter(self.add_blank_tab)
 
     def OnPageClosed(self, evt):
-        pass
+        wx.CallAfter(self._position_add_tab)
+        evt.Skip()
+
+    def _position_add_tab(self):
+        try:
+            tabs = self.GetActiveTabCtrl()
+            height = tabs.GetSize().height
+            pages = tabs.GetPages()
+        except RuntimeError:
+            return
+
+        if pages and height > 2:
+            right = max((page.rect.GetRight() for page in pages), default=0)
+            position = self.ScreenToClient(
+                tabs.ClientToScreen((right + 2, 0)))
+            self._add_tab_height = height
+        else:
+            position = wx.Point(1, 1)
+            height = getattr(self, '_add_tab_height', self.FromDIP(28))
+
+        width = self.FromDIP(36)
+        position.x = min(
+            position.x, max(1, self.GetClientSize().width - width - 1))
+        rect = wx.Rect(position.x, position.y, width, height)
+        if self._add_tab_control.GetRect() != rect:
+            self._add_tab_control.SetSize(rect)
+        self._add_tab_control.Raise()
+        self._add_tab_control.Show()
+
+    def delete_document_page(self, index):
+        return self.DeletePage(index)
         
             
 #----------------------------------------------------------------------------
@@ -1328,16 +1458,19 @@ class PhysiologyFrame(PersistentFrame):
         webbrowser.open(file_url)
 
     def OnCloseTab(self, evt):
-        self.__nb.DeletePage(self.__nb.GetSelection())
+        index = self.__nb.GetSelection()
+        if index != wx.NOT_FOUND:
+            self.__nb.delete_document_page(index)
 
     def OnCloseAllBut(self, evt):
-        for k in reversed(range(self.__nb.PageCount)):
-            if k != self.__nb.GetSelection():
-                self.__nb.DeletePage(k)
+        selected = self.__nb.GetSelection()
+        for k in reversed(self.__nb.document_indexes()):
+            if k != selected:
+                self.__nb.delete_document_page(k)
 
     def OnCloseAllTabs(self, evt):
-        for k in reversed(range(self.__nb.PageCount)):
-            self.__nb.DeletePage(k)
+        for k in reversed(self.__nb.document_indexes()):
+            self.__nb.delete_document_page(k)
 
     def ConvertFiles(self, title, wildcard, convert_file, source_name,
                      channel_loader=None, template_reader=None,
@@ -1440,14 +1573,34 @@ class PhysiologyFrame(PersistentFrame):
     def OnSetOptions(self, evt):
         dlg = PhysiologyOptions(self, wx.ID_ANY, "Options")
         dlg.CenterOnScreen()
+        previous_settings = dlg.waveform_settings()
+        previous_processing = dlg.processing_settings()
         val = dlg.ShowModal()
         if val == wx.ID_OK:
             self.foptions.SetVariables(startdir=dlg.file.startdir)
             if self.__filetree.root != dlg.file.startdir:
                 self.__filetree.root = dlg.file.startdir
-            for page in self.__nb:
-                if hasattr(page, 'presenter'):
-                    page.presenter._plotupdate = True
+            presenters = [page.presenter for page in self.__nb
+                          if isinstance(getattr(page, 'presenter', None),
+                                        WaveformPresenter)]
+            settings_changed = previous_settings != dlg.waveform_settings()
+            if (presenters and settings_changed and wx.MessageBox(
+                    'Apply setting changes to currently open waveforms?',
+                    'Apply Settings',
+                    wx.YES_NO | wx.NO_DEFAULT | wx.ICON_QUESTION,
+                    self) == wx.YES):
+                reload_data = previous_processing != dlg.processing_settings()
+                for presenter in presenters:
+                    refreshed = None
+                    if reload_data:
+                        model = presenter.model
+                        refreshed = loadmodel(
+                            model.filename,
+                            getattr(model, 'inverted', False),
+                            model.stimPol)
+                        refreshed.inverted = getattr(
+                            model, 'inverted', False)
+                    presenter.apply_options(refreshed)
         dlg.Destroy()
 
 #        evt.Skip()
@@ -1471,11 +1624,11 @@ class PhysiologyFrame(PersistentFrame):
 
     def OnOpenFile(self, evt):
         dlg = wx.FileDialog(self, "Choose a file:", wildcard=SOURCE_WILDCARD,
-                style=wx.FD_OPEN | wx.FD_MULTIPLE | wx.FD_CHANGE_DIR | wx.FD_FILE_MUST_EXIST)
+                style=wx.FD_OPEN | wx.FD_CHANGE_DIR | wx.FD_FILE_MUST_EXIST)
         if dlg.ShowModal() == wx.ID_OK:
-            paths = [p for p in dlg.GetPaths() if is_source_file(p)]
-            if paths:
-                self.__nb.loadfiles(paths)
+            path = dlg.GetPath()
+            if is_source_file(path):
+                self.__nb.load([path])
             else:
                 self.SetStatusText('No valid source files selected.')
         dlg.Destroy()    
@@ -1517,6 +1670,21 @@ class PhysiologyOptions(wx.Dialog):
     @staticmethod
     def _optional_float(value, default):
         return default if value == '' else float(value)
+
+    def processing_settings(self):
+        return (
+            self.ftype.GetStringSelection(),
+            self.fh.GetValue(), self.fl.GetValue(), self.ford.GetValue(),
+            self.tminb.GetValue(), self.tmaxb.GetValue(),
+        )
+
+    def waveform_settings(self):
+        return self.processing_settings() + (
+            self.expectedPeakChoice.GetStringSelection(),
+            tuple(cb.GetValue() for cb in self.pcbs),
+            tuple(cb.GetValue() for cb in self.ncbs),
+            self.gridcb.GetValue(),
+        )
 
     def _configured_option(self, name):
         option = DefaultValueHolder('PhysiologyNotebook', name)

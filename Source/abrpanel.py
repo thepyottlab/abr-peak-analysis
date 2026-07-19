@@ -125,8 +125,12 @@ class PointPlot(StylePlot):
 
     def _getstyle(self):
         val = self.point.point[1]
+        is_visible = getattr(
+            self.parent, 'is_point_visible', lambda *point: True)
         if self.point.index < 0 or self.point.index >= len(
                 self.parent.waveform.y) or self.parent.waveform.threshold == Th.SUB:
+            style = StylePlot.HIDDEN
+        elif not is_visible(*self.point.point):
             style = StylePlot.HIDDEN
         elif self.current and self.parent.current:
             if self.point.point[0] == Point.PEAK:
@@ -135,33 +139,21 @@ class PointPlot(StylePlot):
                 style = dict(PointPlot.VALLEY)
             style.update(PointPlot.TOGGLE)
         elif self.point.point[0] == Point.PEAK:
-            pv = DefaultValueHolder('PhysiologyNotebook', 'peakVisibility')
-            pv.SetVariables(peak_visibility_defaults())
-            pv.InitFromConfig()
-            if not getattr(pv, 'p%d' % val):
-                style = StylePlot.HIDDEN
+            style = dict(PointPlot.PEAK)
+            if self._is_faded():
+                style['c'] = PointPlot.DARK_COLORS[val-1]
+                style['markerfacecolor'] = PointPlot.DARK_COLORS[val-1]
             else:
-                style = dict(PointPlot.PEAK)
-                if self._is_faded():
-                    style['c'] = PointPlot.DARK_COLORS[val-1]
-                    style['markerfacecolor'] = PointPlot.DARK_COLORS[val-1]
-                else:
-                    style['c'] = PointPlot.COLORS[val-1]
-                    style['markerfacecolor'] = PointPlot.COLORS[val-1]
+                style['c'] = PointPlot.COLORS[val-1]
+                style['markerfacecolor'] = PointPlot.COLORS[val-1]
         else:
-            pv = DefaultValueHolder('PhysiologyNotebook', 'peakVisibility')
-            pv.SetVariables(peak_visibility_defaults())
-            pv.InitFromConfig()
-            if not getattr(pv, 'n%d' % val):
-                style = StylePlot.HIDDEN
+            style = dict(PointPlot.VALLEY)
+            if self._is_faded():
+                style['c'] = PointPlot.DARK_COLORS[val-1]
+                style['markerfacecolor'] = PointPlot.DARK_COLORS[val-1]
             else:
-                style = dict(PointPlot.VALLEY)
-                if self._is_faded():
-                    style['c'] = PointPlot.DARK_COLORS[val-1]
-                    style['markerfacecolor'] = PointPlot.DARK_COLORS[val-1]
-                else:
-                    style['c'] = PointPlot.COLORS[val-1]
-                    style['markerfacecolor'] = PointPlot.COLORS[val-1]
+                style['c'] = PointPlot.COLORS[val-1]
+                style['markerfacecolor'] = PointPlot.COLORS[val-1]
         return style
 
     def _plot(self):
@@ -214,14 +206,24 @@ class WaveformPlot(StylePlot):
             'linestyle':    ':'
         }
 
-    def __init__(self, waveform, figure=None):
+    def __init__(self, waveform, figure=None, is_point_visible=None):
         self.figure = figure
         self.waveform = waveform
+        self.is_point_visible = (is_point_visible or
+                                 self._configured_point_visibility)
         self._cc_label = None
         self._scale = 7
         self.update()
         self._pointplots()
         self._normalized = False
+
+    @staticmethod
+    def _configured_point_visibility(point_type, label):
+        visible = DefaultValueHolder('PhysiologyNotebook', 'peakVisibility')
+        visible.SetVariables(peak_visibility_defaults())
+        visible.InitFromConfig()
+        prefix = 'p' if point_type == Point.PEAK else 'n'
+        return getattr(visible, '%s%d' % (prefix, label))
 
     def __del__(self):
         try:

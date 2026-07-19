@@ -45,6 +45,7 @@ class WaveformPresenter(object):
         self.showWork = False
         self.showIO = False
         self.ann = None
+        self._load_display_options()
         interactor.Install(self, view)
         if model is not None:
             self.load(model, options)
@@ -87,11 +88,23 @@ class WaveformPresenter(object):
             axis.xaxis.grid(True, which='major', color='0.85', linewidth=0.8)
             axis.xaxis.grid(True, which='minor', color='0.92', linewidth=0.5)
 
-    def _add_gridlines(self):
+    def _load_display_options(self):
+        visible = DefaultValueHolder('PhysiologyNotebook', 'peakVisibility')
+        visible.SetVariables(peak_visibility_defaults())
+        visible.InitFromConfig()
+        self._peak_visibility = {
+            '%s%d' % (prefix, label): getattr(
+                visible, '%s%d' % (prefix, label))
+            for prefix in ('p', 'n')
+            for label in range(1, expected_peak_count() + 1)
+        }
         plotting = DefaultValueHolder("PhysiologyNotebook", "plotting")
         plotting.SetVariables(addGridlines=True)
         plotting.InitFromConfig()
-        return plotting.addGridlines
+        self._gridlines = plotting.addGridlines
+
+    def _add_gridlines(self):
+        return self._gridlines
 
     def load(self, model, options=None):
         self.options = options
@@ -103,7 +116,7 @@ class WaveformPresenter(object):
         else:
             self.N = True
             self.P = True
-        self.plots = [WaveformPlot(w, self.view.subplot) \
+        self.plots = [WaveformPlot(w, self.view.subplot, self._point_visible) \
                 for w in self.model.series]
         xMax = 8.5
         if self.model.dataType == ABRDataType.Clinical:
@@ -121,6 +134,32 @@ class WaveformPresenter(object):
         restore.InitFromConfig()
         if restore.value and peakio.have_stored_analysis((self.model)):
             self.restore()
+
+    def apply_options(self, refreshed_model=None):
+        self._load_display_options()
+        if refreshed_model is not None:
+            refreshed = {w.level: w for w in refreshed_model.series}
+            for waveform in self.model.series:
+                source = refreshed.get(waveform.level)
+                if source is None:
+                    continue
+                for name in ('fs', 'x', 'y', '_zpk', 'corrcoef'):
+                    if hasattr(source, name):
+                        setattr(waveform, name, getattr(source, name))
+            for name in ('filter_settings', 'Tmax'):
+                if hasattr(refreshed_model, name):
+                    setattr(self.model, name, getattr(refreshed_model, name))
+            self.model.compute_corrcoefs()
+            for plot in self.plots:
+                plot.x = plot.waveform.x
+                plot.y_base = plot.waveform.y
+                plot.y_nbase = plot.waveform.normalized().y
+                plot._scale_plot()
+
+        if self.toggle is not None and not self._point_visible(*self.toggle):
+            self.toggle = None
+        self._plotupdate = True
+        self.update()
 
     def delete(self):
         self.plots[self.current].remove()
@@ -460,6 +499,7 @@ class WaveformPresenter(object):
 
     def invert(self):
         self.model.invert()
+        self.model.inverted = not getattr(self.model, 'inverted', False)
         self.guess_p()
         for p in self.plots:
             p.invert()
@@ -541,11 +581,8 @@ class WaveformPresenter(object):
             self.view.ioplot.set_ylim(0, 1)
 
     def _point_visible(self, point_type, label):
-        visible = DefaultValueHolder('PhysiologyNotebook', 'peakVisibility')
-        visible.SetVariables(peak_visibility_defaults())
-        visible.InitFromConfig()
         prefix = 'p' if point_type == Point.PEAK else 'n'
-        return getattr(visible, '%s%d' % (prefix, label))
+        return self._peak_visibility.get('%s%d' % (prefix, label), False)
 
     def _point_amplitude(self, waveform, point):
         value = getattr(waveform, 'points', {}).get(point)
