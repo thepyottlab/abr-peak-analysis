@@ -136,7 +136,10 @@ class WaveformPresenter(object):
             self._redrawflag = True
             self._plotupdate = True
             self.update()
-            wx.CallLater(100, self.view.GetTopLevelParent().SetStatusText, msg)
+            frame = self.view.GetTopLevelParent()
+            if hasattr(frame, 'mark_file_processed'):
+                frame.mark_file_processed(self.model.filename)
+            wx.CallLater(100, frame.SetStatusText, msg)
         else:
             msg = "Please identify P1-%d before saving" % expected_peak_count()
             wx.MessageBox(msg, "Error")

@@ -5,6 +5,18 @@ from matplotlib.figure import Figure
 
 import warnings; warnings.simplefilter('ignore', DeprecationWarning)
 
+def _checked_file_bitmap(bitmap):
+    checked = wx.Bitmap(bitmap)
+    dc = wx.MemoryDC(checked)
+    dc.SetPen(wx.Pen(wx.Colour(15, 118, 55)))
+    dc.SetBrush(wx.Brush(wx.Colour(34, 197, 94)))
+    dc.DrawRoundedRectangle(8, 8, 8, 8, 1)
+    dc.SetPen(wx.Pen(wx.WHITE, 2))
+    dc.DrawLine(10, 12, 12, 14)
+    dc.DrawLine(12, 14, 15, 10)
+    dc.SelectObject(wx.NullBitmap)
+    return checked
+
 def _open_files(data):
     if data['has_children']:
         return []
@@ -43,10 +55,9 @@ class LazyTree(wx.TreeCtrl):
         #bm = wx.ArtProvider_GetBitmap(wx.ART_FILE_OPEN, wx.ART_OTHER, isz)
         bm = wx.ArtProvider.GetBitmap(wx.ART_FOLDER_OPEN, wx.ART_OTHER, isz)
         icons['fldropenidx'] = il.Add(bm)
-        bm = wx.ArtProvider.GetBitmap(wx.ART_WARNING, wx.ART_OTHER, isz)
-        icons['fileidx'] = il.Add(bm)
         bm = wx.ArtProvider.GetBitmap(wx.ART_NORMAL_FILE, wx.ART_OTHER, isz)
-        icons['fileprocessedidx'] = il.Add(bm)
+        icons['fileidx'] = il.Add(bm)
+        icons['fileprocessedidx'] = il.Add(_checked_file_bitmap(bm))
         self.SetImageList(il)
         self.il = il
         self.icons = icons
@@ -110,6 +121,28 @@ class LazyTree(wx.TreeCtrl):
         except AttributeError: return None
 
     root = property(get_root, set_root, None, None)
+
+    def mark_processed(self, path):
+        target = os.path.normcase(os.path.abspath(path))
+
+        def mark_child(parent):
+            child, cookie = self.GetFirstChild(parent)
+            while child.IsOk():
+                data = self.GetItemData(child)
+                child_path = data.get('data_string', '')
+                if (not data['has_children'] and child_path and
+                        os.path.normcase(os.path.abspath(child_path)) == target):
+                    data['processed'] = True
+                    self.SetItemData(child, data)
+                    self.SetItemImage(child, self.icons['fileprocessedidx'],
+                                      wx.TreeItemIcon_Normal)
+                    return True
+                if data['has_children'] and mark_child(child):
+                    return True
+                child, cookie = self.GetNextChild(parent, cookie)
+            return False
+
+        return mark_child(self.root_id)
 
     def on_collapse(self, event):
         item_id = event.GetItem()

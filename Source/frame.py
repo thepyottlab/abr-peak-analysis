@@ -1222,6 +1222,9 @@ class PhysiologyFrame(PersistentFrame):
         self.SetStatusText('File tree refreshed.'
                                'Please drag and drop files to canvas.')
 
+    def mark_file_processed(self, path):
+        self.__filetree.mark_processed(path)
+
     def OnCheckForUpdates(self, evt):
         self.CheckForUpdates(notify=True)
 

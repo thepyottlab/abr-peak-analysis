@@ -1,4 +1,4 @@
-import re, os
+import re, os, sqlite3
 import numpy
 import analysis_sqlite
 from walker import ReWalker
@@ -73,6 +73,17 @@ def load(run, invert=False, filter=None, polarity=ABRStimPolarity.Avg, t_min=0, 
     else:
         return loadabr(run, filter=True, fdict=filter, invert=invert, polarity=polarity,
                        t_min=t_min, t_max=t_max)
+
+def _has_saved_analysis(path):
+    try:
+        return any(
+            any(analysis_sqlite.stored_datasets_at_path(
+                path + '-analyzed.sqlite', polarity).values())
+            for polarity in ABRStimPolarity
+        )
+    except sqlite3.Error:
+        return False
+
 def list(location, skip_processed=False):
     if location is not None and os.path.isdir(location):
         data = os.listdir(location)
@@ -84,7 +95,7 @@ def list(location, skip_processed=False):
             'sort_key': d,
             'has_children': os.path.isdir(os.path.join(location, d)),
             'data_string':  os.path.join(location, d),
-            'processed' : True,
+            'processed': _has_saved_analysis(os.path.join(location, d)),
             } for d in data]
 
     '''The walker class recursively iterates through all directories and returns
